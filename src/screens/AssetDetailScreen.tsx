@@ -1,69 +1,91 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
+import { GlassCard } from '../components/GlassCard';
+import { ScreenWrapper } from '../components/ScreenWrapper';
 
 const AssetDetailScreen = ({ route, navigation }: any) => {
     const { asset } = route.params;
     const { t } = useTranslation();
 
-    // Mock timeline data
     const timeline = [
-        { date: asset.timestamp, event: 'Azmitización (Génesis)', status: 'Success' },
-        { date: asset.timestamp - 86400000, event: 'Grabación de Chip en Fábrica', status: 'Verified' },
-        { date: Date.now(), event: 'Verificación de Autenticidad', status: 'Valid' }
+        { date: asset.timestamp, event: 'PHYGITAL BINDING', status: 'CONFIRMED' },
+        { date: asset.timestamp - 86400000, event: 'CHIP FACTORY AUTH', status: 'VERIFIED' },
+        { date: Date.now(), event: 'LIVE VERIFICATION', status: 'GENUINE' }
     ];
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Text style={styles.backButton}>← {t('back') || 'Back'}</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>{t(`category_${asset.category.toLowerCase()}`)}</Text>
-            </View>
+        <ScreenWrapper>
+            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircle}>
+                        <Text style={styles.backArrow}>←</Text>
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.category}>{t(`category_${asset.category.toLowerCase()}`)}</Text>
+                        <Text style={styles.title}>{asset.id.split('-')[0]}</Text>
+                    </View>
+                </View>
 
-            <View style={styles.section}>
-                <Text style={styles.label}>ID AZMIT</Text>
-                <Text style={styles.value}>{asset.id}</Text>
-            </View>
-
-            <View style={styles.section}>
-                <Text style={styles.label}>CHIP UID</Text>
-                <Text style={styles.value}>{asset.uid}</Text>
-            </View>
-
-            <View style={styles.section}>
-                <Text style={styles.label}>TRANSACTION HASH</Text>
-                <Text style={styles.txHash}>{asset.txHash}</Text>
-            </View>
-
-            <Text style={styles.sectionTitle}>{t('timeline') || 'Timeline de Autenticidad'}</Text>
-
-            <View style={styles.timelineContainer}>
-                {timeline.map((item, index) => (
-                    <View key={index} style={styles.timelineItem}>
-                        <View style={styles.timelineDotContainer}>
-                            <View style={[styles.dot, index === 0 && styles.activeDot]} />
-                            {index !== timeline.length - 1 && <View style={styles.line} />}
-                        </View>
-                        <View style={styles.timelineContent}>
-                            <Text style={styles.eventText}>{item.event}</Text>
-                            <Text style={styles.dateText}>{new Date(item.date).toLocaleString()}</Text>
-                            <Text style={styles.statusBadge}>{item.status}</Text>
+                <GlassCard style={styles.mainInfo}>
+                    <View style={styles.infoRow}>
+                        <View>
+                            <Text style={styles.label}>FULL ID</Text>
+                            <Text style={styles.value}>{asset.id}</Text>
                         </View>
                     </View>
-                ))}
-            </View>
-        </ScrollView>
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.infoRow}>
+                        <View>
+                            <Text style={styles.label}>CHIP UID (DNA)</Text>
+                            <Text style={styles.value}>{asset.uid}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.infoRow}>
+                        <View>
+                            <Text style={styles.label}>NETWORK PROXY</Text>
+                            <Text style={styles.txHash}>{asset.txHash}</Text>
+                        </View>
+                    </View>
+                </GlassCard>
+
+                <Text style={styles.sectionTitle}>CHAIN OF CUSTODY</Text>
+
+                <View style={styles.timelineContainer}>
+                    {timeline.map((item, index) => (
+                        <View key={index} style={styles.timelineItem}>
+                            <View style={styles.timelineDotContainer}>
+                                <View style={[styles.dot, index === 0 && styles.activeDot]} />
+                                {index !== timeline.length - 1 && <View style={styles.line} />}
+                            </View>
+                            <GlassCard style={styles.timelineCard}>
+                                <Text style={styles.eventText}>{item.event}</Text>
+                                <Text style={styles.dateText}>{new Date(item.date).toLocaleString()}</Text>
+                                <View style={[styles.statusBadge, { borderColor: index === 0 ? COLORS.success : COLORS.azmitaBlue }]}>
+                                    <Text style={[styles.statusBadgeText, { color: index === 0 ? COLORS.success : COLORS.azmitaBlue }]}>{item.status}</Text>
+                                </View>
+                            </GlassCard>
+                        </View>
+                    ))}
+                </View>
+            </ScrollView>
+        </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.deepBlack,
-        padding: 20,
+    },
+    scrollContent: {
+        padding: 24,
+        paddingBottom: 60,
     },
     header: {
         marginTop: 40,
@@ -71,102 +93,133 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    backButton: {
+    backCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+        borderWidth: 1,
+        borderColor: COLORS.glassBorder,
+    },
+    backArrow: {
         color: COLORS.azmitaBlue,
-        fontSize: 16,
-        marginRight: 20,
+        fontSize: 24,
+        fontWeight: '300',
+    },
+    category: {
+        color: COLORS.azmitaBlue,
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 2,
+        textTransform: 'uppercase',
     },
     title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: COLORS.ghostWhite,
+        fontSize: 28,
+        fontWeight: '900',
+        color: COLORS.textPrimary,
+        letterSpacing: 1,
     },
-    section: {
-        backgroundColor: COLORS.spaceGray,
-        padding: 15,
-        borderRadius: 12,
-        marginBottom: 15,
-        borderWidth: 1,
-        borderColor: COLORS.azmitaBlue + '22',
+    mainInfo: {
+        padding: 24,
+        marginBottom: 32,
+    },
+    infoRow: {
+        marginVertical: 4,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: COLORS.glassBorder,
+        marginVertical: 16,
     },
     label: {
-        color: COLORS.steel,
-        fontSize: 12,
-        marginBottom: 5,
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 1,
+        marginBottom: 6,
     },
     value: {
-        color: COLORS.ghostWhite,
+        color: COLORS.textPrimary,
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
     },
     txHash: {
         color: COLORS.azmitaBlue,
-        fontSize: 12,
-        fontFamily: 'monospace',
+        fontSize: 11,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+        lineHeight: 16,
     },
     sectionTitle: {
-        color: COLORS.ghostWhite,
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginTop: 20,
-        marginBottom: 20,
+        color: COLORS.textPrimary,
+        fontSize: 14,
+        fontWeight: '900',
+        letterSpacing: 3,
+        marginBottom: 24,
+        textAlign: 'center',
     },
     timelineContainer: {
-        paddingLeft: 10,
+        paddingLeft: 4,
     },
     timelineItem: {
         flexDirection: 'row',
-        marginBottom: 25,
+        marginBottom: 20,
     },
     timelineDotContainer: {
         alignItems: 'center',
-        marginRight: 15,
+        marginRight: 20,
     },
     dot: {
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: COLORS.steel,
-        zIndex: 1,
+        backgroundColor: COLORS.textGhost,
+        marginTop: 20,
+        zIndex: 2,
     },
     activeDot: {
-        backgroundColor: COLORS.azmitaBlue,
-        shadowColor: COLORS.azmitaBlue,
-        shadowOffset: { width: 0, height: 0 },
+        backgroundColor: COLORS.success,
+        shadowColor: COLORS.success,
+        shadowRadius: 8,
         shadowOpacity: 1,
-        shadowRadius: 10,
-        elevation: 5,
+        elevation: 10,
     },
     line: {
-        width: 2,
+        width: 1.5,
         flex: 1,
-        backgroundColor: COLORS.steel + '44',
+        backgroundColor: COLORS.glassBorder,
         position: 'absolute',
-        top: 12,
+        top: 32,
     },
-    timelineContent: {
+    timelineCard: {
         flex: 1,
+        padding: 16,
     },
     eventText: {
-        color: COLORS.ghostWhite,
-        fontSize: 16,
-        fontWeight: '600',
+        color: COLORS.textPrimary,
+        fontSize: 14,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
     dateText: {
-        color: COLORS.steel,
+        color: COLORS.textSecondary,
         fontSize: 12,
         marginTop: 4,
     },
     statusBadge: {
         alignSelf: 'flex-start',
-        backgroundColor: COLORS.azmitaBlue + '22',
-        color: COLORS.azmitaBlue,
-        fontSize: 10,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
-        marginTop: 8,
-        fontWeight: 'bold',
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+        marginTop: 12,
+    },
+    statusBadgeText: {
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 1,
     }
 });
 

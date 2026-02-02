@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
+import { GlassCard } from '../components/GlassCard';
+import { ScreenWrapper } from '../components/ScreenWrapper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
@@ -35,114 +37,148 @@ const VaultScreen = () => {
 
     const renderItem = ({ item }: { item: Azmit }) => (
         <TouchableOpacity
-            style={styles.card}
+            activeOpacity={0.7}
             onPress={() => navigation.navigate('AssetDetail', { asset: item })}
         >
-            <View style={styles.cardHeader}>
-                <Text style={styles.category}>{t(`category_${item.category.toLowerCase()}`)}</Text>
-                <Text style={styles.date}>{new Date(item.timestamp).toLocaleDateString()}</Text>
-            </View>
-            <Text style={styles.azmitId}>{item.id}</Text>
-            <View style={styles.statusBadge}>
-                <View style={styles.dot} />
-                <Text style={styles.statusText}>{t('azmitado')}</Text>
-            </View>
-            <Text style={styles.txHash}>{item.txHash.substring(0, 20)}...</Text>
+            <GlassCard style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.category}>{t(`category_${item.category.toLowerCase()}`)}</Text>
+                    <Text style={styles.date}>{new Date(item.timestamp).toLocaleDateString()}</Text>
+                </View>
+                <Text style={styles.azmitId}>{item.id}</Text>
+                <View style={styles.statusBadge}>
+                    <View style={styles.dot} />
+                    <Text style={styles.statusText}>{t('azmitado')}</Text>
+                </View>
+                <Text style={styles.txHash}>{item.txHash}</Text>
+            </GlassCard>
         </TouchableOpacity>
     );
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>{t('vault')}</Text>
+        <ScreenWrapper style={styles.container}>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Text style={styles.backButton}>←</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>{t('vault')}</Text>
+            </View>
+
             <FlatList
                 data={azmits}
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
                 ListEmptyComponent={
-                    <Text style={styles.emptyText}>No assets found in your vault.</Text>
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>Vault is empty</Text>
+                        <Text style={styles.emptySubtext}>Bind your first physical asset to start.</Text>
+                    </View>
                 }
             />
-        </View>
+        </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: COLORS.deepBlack,
-        padding: 20,
-        paddingTop: 60,
+        paddingHorizontal: 20,
+    },
+    header: {
+        marginTop: 60,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 30,
+    },
+    backButton: {
+        color: COLORS.azmitaBlue,
+        fontSize: 30,
+        marginRight: 20,
+        fontWeight: '300',
     },
     title: {
         fontSize: 32,
-        fontWeight: 'bold',
-        color: COLORS.azmitaBlue,
-        marginBottom: 20,
+        fontWeight: '800',
+        color: COLORS.textPrimary,
+        letterSpacing: 2,
     },
     list: {
-        paddingBottom: 20,
+        paddingBottom: 40,
     },
     card: {
-        backgroundColor: COLORS.spaceGray,
-        borderRadius: 15,
-        padding: 20,
-        marginBottom: 15,
-        borderWidth: 1,
-        borderColor: COLORS.azmitaBlue + '22',
+        padding: 24,
+        marginBottom: 20,
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 10,
+        marginBottom: 12,
     },
     category: {
         color: COLORS.azmitaBlue,
-        fontWeight: '600',
-        fontSize: 14,
+        fontWeight: '700',
+        fontSize: 12,
+        letterSpacing: 1.5,
         textTransform: 'uppercase',
     },
     date: {
-        color: COLORS.steel,
+        color: COLORS.textSecondary,
         fontSize: 12,
+        fontWeight: '500',
     },
     azmitId: {
-        color: COLORS.ghostWhite,
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 10,
+        color: COLORS.textPrimary,
+        fontSize: 22,
+        fontWeight: '800',
+        marginBottom: 12,
+        letterSpacing: 0.5,
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.success + '22',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 20,
+        backgroundColor: 'rgba(0, 255, 163, 0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 30,
         alignSelf: 'flex-start',
-        marginBottom: 10,
+        marginBottom: 16,
+        borderWidth: 0.5,
+        borderColor: 'rgba(0, 255, 163, 0.3)',
     },
     dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
         backgroundColor: COLORS.success,
         marginRight: 8,
+        shadowColor: COLORS.success,
+        shadowRadius: 4,
+        shadowOpacity: 1,
     },
     statusText: {
         color: COLORS.success,
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 1,
     },
     txHash: {
-        color: COLORS.steel,
-        fontSize: 10,
-        fontFamily: 'monospace',
+        color: COLORS.textGhost,
+        fontSize: 11,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    emptyContainer: {
+        marginTop: 100,
+        alignItems: 'center',
     },
     emptyText: {
-        color: COLORS.steel,
-        textAlign: 'center',
-        marginTop: 50,
+        color: COLORS.textPrimary,
+        fontSize: 18,
+        fontWeight: '600',
+    },
+    emptySubtext: {
+        color: COLORS.textSecondary,
+        fontSize: 14,
+        marginTop: 8,
     }
 });
 
