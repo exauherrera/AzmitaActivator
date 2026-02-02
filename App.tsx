@@ -13,6 +13,7 @@ import { Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 import MainScreen from './src/screens/MainScreen';
 import VaultScreen from './src/screens/VaultScreen';
 import AssetDetailScreen from './src/screens/AssetDetailScreen';
+import { SplashScreen } from './src/screens/SplashScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -43,6 +44,7 @@ const TabNavigator = () => (
 );
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [languageSet, setLanguageSet] = useState<boolean | null>(null);
 
   let [fontsLoaded] = useFonts({
@@ -72,6 +74,10 @@ export default function App() {
         <ActivityIndicator color={COLORS.azmitaRed} size="large" />
       </View>
     );
+  }
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
   return (
