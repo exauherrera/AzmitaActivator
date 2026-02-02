@@ -7,7 +7,7 @@ export const ScreenWrapper: React.FC<{ children: React.ReactNode; style?: ViewSt
     return (
         <View style={styles.container}>
             <LinearGradient
-                colors={[COLORS.deepDark, '#1A1A2E', COLORS.deepDark]}
+                colors={[COLORS.deepMaroon, COLORS.cardBlack, COLORS.deepMaroon]}
                 style={StyleSheet.absoluteFill}
             />
             <View style={[styles.content, style]}>

@@ -123,7 +123,7 @@ const MainScreen = () => {
                     <GlassCard style={styles.scannerCard}>
                         {loading ? (
                             <View style={styles.loadingWrapper}>
-                                <ActivityIndicator size="large" color={COLORS.azmitaBlue} />
+                                <ActivityIndicator size="large" color={COLORS.azmitaRed} />
                                 <Text style={styles.statusLabel}>{status}</Text>
                             </View>
                         ) : (
@@ -165,16 +165,17 @@ const styles = StyleSheet.create({
     },
     logo: {
         fontSize: 42,
-        fontWeight: '900',
-        color: COLORS.azmitaBlue,
+        fontFamily: 'Orbitron_900Black',
+        color: COLORS.azmitaRed,
         letterSpacing: 8,
-        textShadowColor: COLORS.azmitaGlow,
+        textShadowColor: COLORS.azmitaRedGlow,
         textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: 20,
     },
     tagline: {
         color: COLORS.textSecondary,
         fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
         letterSpacing: 3,
         marginTop: 10,
     },
@@ -195,7 +196,7 @@ const styles = StyleSheet.create({
         height: width * 0.6,
         borderRadius: width * 0.3,
         borderWidth: 2,
-        borderColor: COLORS.azmitaBlue,
+        borderColor: COLORS.azmitaRed,
     },
     scannerCard: {
         width: width * 0.6,
@@ -210,18 +211,20 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         marginTop: 20,
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Inter_700Bold',
     },
     idleWrapper: {
         alignItems: 'center',
     },
     scannerIcon: {
         fontSize: 60,
-        color: COLORS.azmitaBlue,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.azmitaRed,
     },
     readyText: {
         color: COLORS.textSecondary,
-        fontSize: 12,
+        fontSize: 11,
+        fontFamily: 'Orbitron_700Bold',
         marginTop: 10,
         letterSpacing: 2,
     },
@@ -245,11 +248,11 @@ const styles = StyleSheet.create({
     vaultText: {
         color: COLORS.textPrimary,
         fontSize: 16,
-        fontWeight: '600',
+        fontFamily: 'Inter_700Bold',
         letterSpacing: 1,
     },
     vaultArrow: {
-        color: COLORS.azmitaBlue,
+        color: COLORS.azmitaRed,
         fontSize: 20,
     }
 });

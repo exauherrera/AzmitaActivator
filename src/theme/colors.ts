@@ -1,33 +1,34 @@
 export const COLORS = {
-  // Primary Brand - Azmita Blue
-  azmitaBlue: '#00D1FF', // Brighter, more kinetic cyan-blue
-  azmitaGlow: 'rgba(0, 209, 255, 0.4)',
+  // Brand - Red Lion
+  azmitaRed: '#E63946', // Intense Crimson from the logo ring
+  azmitaRedGlow: 'rgba(230, 57, 70, 0.5)',
+  azmitaGold: '#D4AF37', // For the coin accents
 
-  // Neutral Palette (Sophisticated Darks)
-  deepDark: '#050505',
-  cardBlack: '#121212',
-  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  // Backgrounds - Cinematic Darks
+  deepMaroon: '#1A0505',
+  cardBlack: '#0D0202',
+  glassBorder: 'rgba(230, 57, 70, 0.2)',
 
   // Semantic
   success: '#00FFA3',
   error: '#FF3D71',
   warning: '#FFD600',
 
-  // Text
+  // Text - High Contrast
   textPrimary: '#FFFFFF',
-  textSecondary: '#8F9BB3',
-  textGhost: '#4A4A4A',
+  textSecondary: '#B08E8E', // Desaturated reddish gray
+  textGhost: '#3D1C1C',
 };
 
 export const THEME = {
   dark: {
-    background: COLORS.deepDark,
+    background: COLORS.deepMaroon,
     surface: COLORS.cardBlack,
-    accent: COLORS.azmitaBlue,
+    accent: COLORS.azmitaRed,
     text: COLORS.textPrimary,
     subtext: COLORS.textSecondary,
     glass: {
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      backgroundColor: 'rgba(40, 0, 0, 0.3)',
       borderColor: COLORS.glassBorder,
     }
   }

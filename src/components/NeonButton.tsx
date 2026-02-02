@@ -14,7 +14,7 @@ export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle
     return (
         <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[styles.wrapper, style]}>
             <LinearGradient
-                colors={[COLORS.azmitaBlue, '#0055FF']}
+                colors={[COLORS.azmitaRed, '#8B0000']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.gradient}
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     wrapper: {
         borderRadius: 16,
         overflow: 'hidden',
-        shadowColor: COLORS.azmitaBlue,
+        shadowColor: COLORS.azmitaRed,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.5,
         shadowRadius: 10,
@@ -45,14 +45,16 @@ const styles = StyleSheet.create({
     title: {
         color: '#FFFFFF',
         fontSize: 18,
-        fontWeight: '800',
-        letterSpacing: 1,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 2,
         textTransform: 'uppercase',
     },
     subtitle: {
         color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 12,
+        fontSize: 11,
+        fontFamily: 'Inter_400Regular',
         marginTop: 4,
         fontWeight: '500',
+        letterSpacing: 1,
     },
 });

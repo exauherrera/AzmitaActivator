@@ -67,8 +67,8 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
                             <GlassCard style={styles.timelineCard}>
                                 <Text style={styles.eventText}>{item.event}</Text>
                                 <Text style={styles.dateText}>{new Date(item.date).toLocaleString()}</Text>
-                                <View style={[styles.statusBadge, { borderColor: index === 0 ? COLORS.success : COLORS.azmitaBlue }]}>
-                                    <Text style={[styles.statusBadgeText, { color: index === 0 ? COLORS.success : COLORS.azmitaBlue }]}>{item.status}</Text>
+                                <View style={[styles.statusBadge, { borderColor: index === 0 ? COLORS.success : COLORS.azmitaRed }]}>
+                                    <Text style={[styles.statusBadgeText, { color: index === 0 ? COLORS.success : COLORS.azmitaRed }]}>{item.status}</Text>
                                 </View>
                             </GlassCard>
                         </View>
@@ -105,20 +105,19 @@ const styles = StyleSheet.create({
         borderColor: COLORS.glassBorder,
     },
     backArrow: {
-        color: COLORS.azmitaBlue,
+        color: COLORS.azmitaRed,
         fontSize: 24,
-        fontWeight: '300',
     },
     category: {
-        color: COLORS.azmitaBlue,
+        color: COLORS.azmitaRed,
         fontSize: 10,
-        fontWeight: '800',
+        fontFamily: 'Orbitron_700Bold',
         letterSpacing: 2,
         textTransform: 'uppercase',
     },
     title: {
         fontSize: 28,
-        fontWeight: '900',
+        fontFamily: 'Orbitron_900Black',
         color: COLORS.textPrimary,
         letterSpacing: 1,
     },
@@ -137,17 +136,17 @@ const styles = StyleSheet.create({
     label: {
         color: COLORS.textSecondary,
         fontSize: 10,
-        fontWeight: '700',
+        fontFamily: 'Orbitron_700Bold',
         letterSpacing: 1,
         marginBottom: 6,
     },
     value: {
         color: COLORS.textPrimary,
         fontSize: 18,
-        fontWeight: '700',
+        fontFamily: 'Inter_700Bold',
     },
     txHash: {
-        color: COLORS.azmitaBlue,
+        color: COLORS.azmitaRed,
         fontSize: 11,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         lineHeight: 16,
@@ -155,7 +154,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         color: COLORS.textPrimary,
         fontSize: 14,
-        fontWeight: '900',
+        fontFamily: 'Orbitron_900Black',
         letterSpacing: 3,
         marginBottom: 24,
         textAlign: 'center',
@@ -215,11 +214,13 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 20,
         marginTop: 12,
+        borderColor: COLORS.azmitaRed,
     },
     statusBadgeText: {
         fontSize: 9,
-        fontWeight: '900',
+        fontFamily: 'Orbitron_900Black',
         letterSpacing: 1,
+        color: COLORS.azmitaRed,
     }
 });
 
