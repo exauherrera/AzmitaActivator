@@ -16,15 +16,28 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.azmita.activator",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.NFC"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "react-native-nfc-manager"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "44c16abe-9495-4135-aebc-5d97c16c6095"
+      }
+    },
+    "owner": "exauherrera"
   }
 }
