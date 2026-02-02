@@ -41,11 +41,19 @@ const resources = {
     }
 };
 
+const getLanguage = () => {
+    const locales = Localization.getLocales();
+    if (locales && locales.length > 0 && locales[0].languageCode) {
+        return locales[0].languageCode;
+    }
+    return 'en';
+};
+
 i18n
     .use(initReactI18next)
     .init({
         resources,
-        lng: Localization.locale.split('-')[0], // Default from device
+        lng: getLanguage(),
         fallbackLng: 'en',
         interpolation: {
             escapeValue: false,

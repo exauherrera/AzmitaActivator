@@ -7,7 +7,7 @@ import CryptoJS from 'crypto-js';
  */
 class NfcService {
     constructor() {
-        NfcManager.start();
+        // Initialization moved to scanAndAuthenticate for safety
     }
 
     // APDU Commands for NTAG 424 DNA
@@ -20,6 +20,7 @@ class NfcService {
 
     async scanAndAuthenticate() {
         try {
+            await NfcManager.start();
             await NfcManager.requestTechnology([NfcTech.IsoDep]);
             const tag = await NfcManager.getTag();
 
