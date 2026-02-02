@@ -14,6 +14,7 @@ import MainScreen from './src/screens/MainScreen';
 import VaultScreen from './src/screens/VaultScreen';
 import AssetDetailScreen from './src/screens/AssetDetailScreen';
 import { SplashScreen } from './src/screens/SplashScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -46,6 +47,7 @@ const TabNavigator = () => (
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [languageSet, setLanguageSet] = useState<boolean | null>(null);
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   let [fontsLoaded] = useFonts({
     Orbitron_900Black,
@@ -55,12 +57,14 @@ export default function App() {
   });
 
   useEffect(() => {
-    checkLanguage();
+    checkInitialState();
   }, []);
 
-  const checkLanguage = async () => {
+  const checkInitialState = async () => {
     const savedLanguage = await AsyncStorage.getItem('user-language');
+    const savedOnboarding = await AsyncStorage.getItem('onboarding-done');
     setLanguageSet(!!savedLanguage);
+    setOnboardingDone(!!savedOnboarding);
   };
 
   const handleLanguageSelect = async (lng: string) => {
@@ -68,7 +72,12 @@ export default function App() {
     setLanguageSet(true);
   };
 
-  if (!fontsLoaded || languageSet === null) {
+  const handleOnboardingFinish = async () => {
+    await AsyncStorage.setItem('onboarding-done', 'true');
+    setOnboardingDone(true);
+  };
+
+  if (!fontsLoaded || languageSet === null || onboardingDone === null) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.deepMaroon, justifyContent: 'center' }}>
         <ActivityIndicator color={COLORS.azmitaRed} size="large" />
@@ -80,19 +89,19 @@ export default function App() {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
+  if (!languageSet) {
+    return <LanguageSelectionScreen onSelect={handleLanguageSelect} />;
+  }
+
+  if (!onboardingDone) {
+    return <OnboardingScreen onFinish={handleOnboardingFinish} />;
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!languageSet ? (
-          <Stack.Screen name="LanguageSelect">
-            {(props) => <LanguageSelectionScreen {...props} onSelect={handleLanguageSelect} />}
-          </Stack.Screen>
-        ) : (
-          <>
-            <Stack.Screen name="TabNav" component={TabNavigator} />
-            <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
-          </>
-        )}
+        <Stack.Screen name="TabNav" component={TabNavigator} />
+        <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

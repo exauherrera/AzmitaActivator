@@ -1,7 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
+import { ScreenWrapper } from '../components/ScreenWrapper';
+import { GlassCard } from '../components/GlassCard';
+import { NeonButton } from '../components/NeonButton';
+
+const { width } = Dimensions.get('window');
 
 const LanguageSelectionScreen = ({ onSelect }: { onSelect: (lang: string) => void }) => {
     const { t, i18n } = useTranslation();
@@ -12,61 +17,76 @@ const LanguageSelectionScreen = ({ onSelect }: { onSelect: (lang: string) => voi
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>AZMITA</Text>
-            <Text style={styles.subtitle}>{t('select_language')}</Text>
+        <ScreenWrapper style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.title}>AZMITA</Text>
+                <View style={styles.divider} />
+                <Text style={styles.tagline}>RED LION PROTOCOL</Text>
+            </View>
 
-            <TouchableOpacity
-                style={styles.button}
-                onPress={() => changeLanguage('es')}
-            >
-                <Text style={styles.buttonText}>Español</Text>
-            </TouchableOpacity>
+            <GlassCard style={styles.card}>
+                <Text style={styles.prompt}>{t('select_language')}</Text>
 
-            <TouchableOpacity
-                style={styles.button}
-                onPress={() => changeLanguage('en')}
-            >
-                <Text style={styles.buttonText}>English</Text>
-            </TouchableOpacity>
-        </View>
+                <NeonButton
+                    title="Español"
+                    onPress={() => changeLanguage('es')}
+                    style={styles.btn}
+                />
+
+                <NeonButton
+                    title="English"
+                    onPress={() => changeLanguage('en')}
+                    style={styles.btn}
+                />
+            </GlassCard>
+        </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: COLORS.deepBlack,
-        alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
+        alignItems: 'center',
+        padding: 24,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 60,
     },
     title: {
-        fontSize: 42,
-        fontWeight: 'bold',
-        color: COLORS.azmitaBlue,
-        marginBottom: 10,
+        fontSize: 48,
+        fontFamily: 'Orbitron_900Black',
+        color: '#FFFFFF',
+        letterSpacing: 10,
+    },
+    divider: {
+        width: 80,
+        height: 2,
+        backgroundColor: COLORS.azmitaRed,
+        marginVertical: 15,
+    },
+    tagline: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.azmitaRed,
         letterSpacing: 4,
     },
-    subtitle: {
-        fontSize: 18,
-        color: COLORS.ghostWhite,
-        marginBottom: 40,
-    },
-    button: {
+    card: {
         width: '100%',
-        padding: 15,
-        borderRadius: 12,
-        backgroundColor: COLORS.spaceGray,
-        marginBottom: 15,
+        padding: 30,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.azmitaBlue + '44',
     },
-    buttonText: {
-        color: COLORS.ghostWhite,
-        fontSize: 18,
-        fontWeight: '600',
+    prompt: {
+        fontSize: 14,
+        fontFamily: 'Inter_700Bold',
+        color: COLORS.textSecondary,
+        marginBottom: 30,
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+    },
+    btn: {
+        width: '100%',
+        marginBottom: 20,
     }
 });
 
