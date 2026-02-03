@@ -19,22 +19,58 @@ import { COLORS } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NeonButton } from '../components/NeonButton';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withTiming,
+    withRepeat,
+    Easing,
+    cancelAnimation
+} from 'react-native-reanimated';
+import blockchainService from '../services/blockchainService';
 
 const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
     const [walletAddress, setWalletAddress] = useState('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
+    const [balance, setBalance] = useState('0.00');
     const [isEditing, setIsEditing] = useState(false);
     const [tempAddress, setTempAddress] = useState('');
+    const [loadingBalance, setLoadingBalance] = useState(false);
+    const rotation = useSharedValue(0);
     const networkName = 'Polkadot (Development)';
 
     useEffect(() => {
         loadWallet();
     }, []);
 
+    useEffect(() => {
+        if (walletAddress) {
+            fetchBalance();
+        }
+    }, [walletAddress]);
+
     const loadWallet = async () => {
         const saved = await AsyncStorage.getItem('user-wallet');
         if (saved) setWalletAddress(saved);
     };
+
+    const fetchBalance = async () => {
+        setLoadingBalance(true);
+        rotation.value = withRepeat(
+            withTiming(360, { duration: 1000, easing: Easing.linear }),
+            -1,
+            false
+        );
+        const bal = await blockchainService.getBalance(walletAddress);
+        setBalance(bal);
+        setLoadingBalance(false);
+        cancelAnimation(rotation);
+        rotation.value = withTiming(0);
+    };
+
+    const spinStyle = useAnimatedStyle(() => ({
+        transform: [{ rotate: `${rotation.value}deg` }]
+    }));
 
     const changeLanguage = async (lng: string) => {
         await i18n.changeLanguage(lng);
@@ -59,9 +95,28 @@ const SettingsScreen = () => {
         Alert.alert(t('success'), t('save_record'));
     };
 
+    const handleGenerateWallet = async () => {
+        Alert.alert(
+            t('generate_wallet_title') || 'Generar Nueva Wallet',
+            t('generate_wallet_warn') || 'Esto reemplazará tu llave actual. Asegúrate de guardar tu nueva dirección.',
+            [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                    text: t('confirm'),
+                    onPress: async () => {
+                        const newWallet = await blockchainService.generateNewWallet();
+                        await AsyncStorage.setItem('user-wallet', newWallet.mnemonic);
+                        setWalletAddress(newWallet.mnemonic);
+                        Alert.alert(t('success'), `${t('new_wallet_created')}\n\nAddress: ${newWallet.address}`);
+                    }
+                }
+            ]
+        );
+    };
+
     const handleCopy = () => {
         Clipboard.setString(walletAddress);
-        Alert.alert(t('success'), t('copy_address'));
+        Alert.alert(t('success'), t('copy_address') || 'Dirección copiada');
     };
 
     return (
@@ -90,14 +145,30 @@ const SettingsScreen = () => {
                 </View>
 
                 <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>{t('wallet_info')}</Text>
-                        <TouchableOpacity onPress={handleEditToggle}>
-                            <Text style={styles.editAction}>{isEditing ? t('error') : t('edit_wallet')}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={styles.sectionTitle}>{t('account_management') || 'MI CUENTA'}</Text>
+
+                    <GlassCard style={styles.balanceCard}>
+                        <View style={styles.balanceHeader}>
+                            <Text style={styles.balanceLabel}>{t('total_balance') || 'SALDO DISPONIBLE'}</Text>
+                            <TouchableOpacity onPress={fetchBalance}>
+                                <Animated.View style={spinStyle}>
+                                    <Ionicons
+                                        name="refresh-circle-outline"
+                                        size={24}
+                                        color={COLORS.azmitaRed}
+                                    />
+                                </Animated.View>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.balanceValue}>{balance} <Text style={styles.currency}>DOT</Text></Text>
+                    </GlassCard>
 
                     <GlassCard style={styles.infoCard}>
+                        <View style={styles.walletHeader}>
+                            <Ionicons name="wallet-outline" size={20} color={COLORS.azmitaRed} />
+                            <Text style={styles.infoLabel}>{t('wallet_address')}</Text>
+                        </View>
+
                         {isEditing ? (
                             <View style={styles.editContainer}>
                                 <TextInput
@@ -114,21 +185,33 @@ const SettingsScreen = () => {
                                 />
                             </View>
                         ) : (
-                            <TouchableOpacity style={styles.infoRow} onPress={handleCopy}>
-                                <Ionicons name="wallet-outline" size={20} color={COLORS.azmitaRed} />
-                                <View style={styles.infoTextContainer}>
-                                    <Text style={styles.infoLabel}>{t('wallet_address')}</Text>
-                                    <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="middle">{walletAddress}</Text>
+                            <>
+                                <TouchableOpacity style={styles.addressContainer} onPress={handleCopy}>
+                                    <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
+                                        {walletAddress}
+                                    </Text>
+                                    <Ionicons name="copy-outline" size={16} color={COLORS.azmitaRed} />
+                                </TouchableOpacity>
+
+                                <View style={styles.actionRow}>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={handleEditToggle}>
+                                        <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
+                                        <Text style={styles.actionBtnText}>{t('edit_wallet') || 'EDITAR'}</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateWallet}>
+                                        <Ionicons name="add-circle-outline" size={18} color={COLORS.azmitaRed} />
+                                        <Text style={[styles.actionBtnText, { color: COLORS.azmitaRed }]}>{t('generate_new') || 'GENERAR NUEVA'}</Text>
+                                    </TouchableOpacity>
                                 </View>
-                                <Ionicons name="copy-outline" size={16} color={COLORS.textGhost} />
-                            </TouchableOpacity>
+                            </>
                         )}
                     </GlassCard>
                 </View>
 
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t('network')}</Text>
-                    <GlassCard style={styles.infoCard}>
+                    <GlassCard style={styles.networkCard}>
                         <View style={styles.infoRow}>
                             <Ionicons name="globe-outline" size={20} color={COLORS.azmitaRed} />
                             <View style={styles.infoTextContainer}>
@@ -262,6 +345,78 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#FFFFFF',
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    balanceCard: {
+        padding: 25,
+        marginBottom: 20,
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+    },
+    balanceHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    balanceLabel: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.textSecondary,
+        letterSpacing: 2,
+    },
+    balanceValue: {
+        fontSize: 36,
+        fontFamily: 'Orbitron_900Black',
+        color: '#FFFFFF',
+    },
+    currency: {
+        fontSize: 18,
+        color: COLORS.azmitaRed,
+    },
+    walletHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 15,
+    },
+    addressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    addressText: {
+        flex: 1,
+        color: COLORS.textSecondary,
+        fontFamily: 'monospace',
+        fontSize: 12,
+        marginRight: 10,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+        paddingTop: 15,
+    },
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    actionBtnText: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.textSecondary,
+        letterSpacing: 1,
+    },
+    networkCard: {
+        padding: 16,
     },
     statusBadge: {
         flexDirection: 'row',

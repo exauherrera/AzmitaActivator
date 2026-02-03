@@ -1,6 +1,6 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
-import { cryptoWaitReady } from '@polkadot/util-crypto';
+import { mnemonicGenerate, cryptoWaitReady } from '@polkadot/util-crypto';
 
 const TREASURY_ADDRESS = '14dUZFW2EYTriLEN4Y8mmTjkC5nBk1jMqMhjNBiG2Y1KoSKN';
 const PROTOCOL_FEE = 0.25; // DOT
@@ -10,10 +10,37 @@ class BlockchainService {
 
     async init() {
         if (this.api) return this.api;
+        // Using a public RPC for balance checks
         const provider = new WsProvider('wss://rpc.polkadot.io');
         this.api = await ApiPromise.create({ provider });
         await cryptoWaitReady();
         return this.api;
+    }
+
+    async generateNewWallet() {
+        await cryptoWaitReady();
+        const mnemonic = mnemonicGenerate();
+        const keyring = new Keyring({ type: 'sr25519' });
+        const pair = keyring.addFromUri(mnemonic);
+        return {
+            mnemonic,
+            address: pair.address
+        };
+    }
+
+    async getBalance(address: string) {
+        try {
+            const api = await this.init();
+            // Default to 0 if address is just a seed like //Alice
+            if (address.startsWith('//')) return '0.00';
+
+            const { data: { free } } = await api.query.system.account(address) as any;
+            const balance = free.toHuman();
+            return balance;
+        } catch (e) {
+            console.error('Balance check failed:', e);
+            return '0.00';
+        }
     }
 
     /**
