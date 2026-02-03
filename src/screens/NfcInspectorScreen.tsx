@@ -75,7 +75,13 @@ const NfcInspectorScreen = () => {
 
             <RadarScanner
                 loading={loading}
-                statusText={loading ? t('reading') : undefined}
+                statusText={
+                    loading
+                        ? t('reading')
+                        : tagData
+                            ? t('scan_tag')
+                            : 'Toca un tag para inspeccionar'
+                }
                 icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
             />
 
@@ -86,7 +92,10 @@ const NfcInspectorScreen = () => {
                 disabled={loading}
             />
 
-            <ScrollView style={styles.scroll}>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {tagData && (
                     <GlassCard style={styles.card}>
                         <View style={styles.section}>
@@ -125,10 +134,6 @@ const NfcInspectorScreen = () => {
                         </View>
                     </GlassCard>
                 )}
-
-                {!tagData && !loading && (
-                    <Text style={styles.empty}>Toca un tag para inspeccionar su contenido interno</Text>
-                )}
             </ScrollView>
         </ScreenWrapper>
     );
@@ -154,8 +159,11 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 20,
     },
+    scrollContent: {
+        paddingBottom: 120, // Prevenir que el contenido final sea tapado por el menú
+    },
     card: {
-        marginBottom: 100,
+        marginBottom: 20,
     },
     section: {
         marginBottom: 20,
