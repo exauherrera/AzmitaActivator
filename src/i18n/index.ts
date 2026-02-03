@@ -59,6 +59,9 @@ const resources = {
             placeholder_metadata: 'Enter additional information...',
             confirm_write: 'AZMITAR NOW',
             save_record: 'SAVE CHANGES',
+            select_network: 'Select Network',
+            network_mainnet: 'Polkadot Mainnet',
+            network_westend: 'Westend Testnet',
         }
     },
     es: {
@@ -117,6 +120,9 @@ const resources = {
             placeholder_metadata: 'Ingresa información adicional...',
             confirm_write: 'AZMITAR AHORA',
             save_record: 'GUARDAR CAMBIOS',
+            select_network: 'Seleccionar Red',
+            network_mainnet: 'Polkadot Mainnet',
+            network_westend: 'Westend Testnet',
         }
     }
 };

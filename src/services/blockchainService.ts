@@ -2,19 +2,33 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
 import { mnemonicGenerate, cryptoWaitReady } from '@polkadot/util-crypto';
 
+export const NETWORKS = {
+    polkadot: 'wss://rpc.polkadot.io',
+    westend: 'wss://westend-rpc.dwellir.com'
+};
+
 const TREASURY_ADDRESS = '14dUZFW2EYTriLEN4Y8mmTjkC5nBk1jMqMhjNBiG2Y1KoSKN';
 const PROTOCOL_FEE = 0.25; // DOT
 
 class BlockchainService {
     private api: ApiPromise | null = null;
+    private currentRpc: string = NETWORKS.polkadot;
 
     async init() {
         if (this.api) return this.api;
-        // Using a public RPC for balance checks
-        const provider = new WsProvider('wss://rpc.polkadot.io');
+        const provider = new WsProvider(this.currentRpc);
         this.api = await ApiPromise.create({ provider });
         await cryptoWaitReady();
         return this.api;
+    }
+
+    async switchNetwork(rpcUrl: string) {
+        if (this.currentRpc === rpcUrl) return;
+        this.currentRpc = rpcUrl;
+        if (this.api) {
+            await this.api.disconnect();
+            this.api = null;
+        }
     }
 
     async generateNewWallet() {
@@ -28,17 +42,41 @@ class BlockchainService {
         };
     }
 
-    async getBalance(address: string) {
+    async getBalance(addressOrSeed: string) {
         try {
             const api = await this.init();
-            // Default to 0 if address is just a seed like //Alice
-            if (address.startsWith('//')) return '0.00';
+            let address = addressOrSeed;
 
-            const { data: { free } } = await api.query.system.account(address) as any;
-            const balance = free.toHuman();
-            return balance;
+            // Detect if it's a mnemonic or seed
+            if (addressOrSeed.split(' ').length >= 12 || addressOrSeed.startsWith('//')) {
+                const keyring = new Keyring({ type: 'sr25519' });
+                const pair = keyring.addFromUri(addressOrSeed);
+                address = pair.address;
+                console.log(`[BLOCKCHAIN] Derived address ${address} from seed`);
+            }
+
+            const accountInfo = await api.query.system.account(address) as any;
+            const { free } = accountInfo.data;
+
+            // Get chain metadata for precision and name
+            const chain = await api.rpc.system.chain();
+            const chainProps = await api.rpc.system.properties();
+            const decimals = (chainProps.tokenDecimals.toHuman() as string[])?.[0] || '10';
+            const symbol = (chainProps.tokenSymbol.toHuman() as string[])?.[0] || 'DOT';
+
+            const divisor = Math.pow(10, Number(decimals));
+
+            // Calculate real balance
+            const balanceNum = Number(free.toString()) / divisor;
+            const formatted = balanceNum.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4
+            });
+
+            console.log(`[BLOCKCHAIN] Connected to ${chain}. Balance for ${address}: ${formatted} ${symbol}`);
+            return formatted;
         } catch (e) {
-            console.error('Balance check failed:', e);
+            console.error('[BLOCKCHAIN] Balance check failed:', e);
             return '0.00';
         }
     }

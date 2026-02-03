@@ -18,6 +18,7 @@ import { GlassCard } from '../components/GlassCard';
 import { COLORS } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Keyring } from '@polkadot/keyring';
 import { NeonButton } from '../components/NeonButton';
 import Animated, {
     useSharedValue,
@@ -27,7 +28,7 @@ import Animated, {
     Easing,
     cancelAnimation
 } from 'react-native-reanimated';
-import blockchainService from '../services/blockchainService';
+import blockchainService, { NETWORKS } from '../services/blockchainService';
 
 const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
@@ -36,6 +37,7 @@ const SettingsScreen = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [tempAddress, setTempAddress] = useState('');
     const [loadingBalance, setLoadingBalance] = useState(false);
+    const [selectedRpc, setSelectedRpc] = useState(NETWORKS.polkadot);
     const rotation = useSharedValue(0);
     const networkName = 'Polkadot (Development)';
 
@@ -50,8 +52,22 @@ const SettingsScreen = () => {
     }, [walletAddress]);
 
     const loadWallet = async () => {
-        const saved = await AsyncStorage.getItem('user-wallet');
-        if (saved) setWalletAddress(saved);
+        // Try to load address first for display
+        const savedAddress = await AsyncStorage.getItem('user-wallet-address');
+        const savedSeed = await AsyncStorage.getItem('user-wallet');
+
+        if (savedAddress) {
+            setWalletAddress(savedAddress);
+        } else if (savedSeed) {
+            // Fallback for legacy data or if only seed exists
+            setWalletAddress(savedSeed);
+        }
+
+        const savedRpc = await AsyncStorage.getItem('user-network');
+        if (savedRpc) {
+            setSelectedRpc(savedRpc);
+            await blockchainService.switchNetwork(savedRpc);
+        }
     };
 
     const fetchBalance = async () => {
@@ -85,14 +101,42 @@ const SettingsScreen = () => {
     };
 
     const handleSaveWallet = async () => {
-        if (!tempAddress.trim()) {
+        const input = tempAddress.trim();
+        if (!input) {
             Alert.alert(t('error'), t('enter_address'));
             return;
         }
-        await AsyncStorage.setItem('user-wallet', tempAddress);
-        setWalletAddress(tempAddress);
+
+        let addressToStore = input;
+
+        // If input looks like a mnemonic or seed, derive address
+        if (input.split(' ').length >= 12 || input.startsWith('//')) {
+            try {
+                const keyring = new Keyring({ type: 'sr25519' });
+                const pair = keyring.addFromUri(input);
+                addressToStore = pair.address;
+                // Save the mnemonic separately
+                await AsyncStorage.setItem('user-wallet', input);
+                console.log('[SETTINGS] Input recognized as seed. Saved both seed and derived address.');
+            } catch (e) {
+                console.warn('[SETTINGS] Could not derive address from input, saving as raw string.');
+            }
+        }
+
+        await AsyncStorage.setItem('user-wallet-address', addressToStore);
+        setWalletAddress(addressToStore);
         setIsEditing(false);
         Alert.alert(t('success'), t('save_record'));
+        fetchBalance();
+    };
+
+    const handleNetworkChange = async (rpcUrl: string) => {
+        if (selectedRpc === rpcUrl) return;
+        setLoadingBalance(true);
+        setSelectedRpc(rpcUrl);
+        await blockchainService.switchNetwork(rpcUrl);
+        await AsyncStorage.setItem('user-network', rpcUrl);
+        await fetchBalance();
     };
 
     const handleGenerateWallet = async () => {
@@ -105,8 +149,12 @@ const SettingsScreen = () => {
                     text: t('confirm'),
                     onPress: async () => {
                         const newWallet = await blockchainService.generateNewWallet();
+                        // Store the mnemonic for signing transactions
                         await AsyncStorage.setItem('user-wallet', newWallet.mnemonic);
-                        setWalletAddress(newWallet.mnemonic);
+                        // Store the address for UI display
+                        await AsyncStorage.setItem('user-wallet-address', newWallet.address);
+
+                        setWalletAddress(newWallet.address);
                         Alert.alert(t('success'), `${t('new_wallet_created')}\n\nAddress: ${newWallet.address}`);
                     }
                 }
@@ -212,16 +260,40 @@ const SettingsScreen = () => {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t('network')}</Text>
                     <GlassCard style={styles.networkCard}>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="globe-outline" size={20} color={COLORS.azmitaRed} />
+                        <View style={styles.networkHeader}>
+                            <Image
+                                source={require('../../assets/polkadot_icon.png')}
+                                style={styles.polkadotLogo}
+                            />
                             <View style={styles.infoTextContainer}>
                                 <Text style={styles.infoLabel}>{t('connected_to')}</Text>
-                                <Text style={styles.infoValue}>{networkName}</Text>
+                                <Text style={styles.infoValue}>
+                                    {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' : 'Westend Testnet'}
+                                </Text>
                             </View>
                             <View style={styles.statusBadge}>
                                 <View style={styles.statusDot} />
                                 <Text style={styles.statusText}>{t('network_status')}</Text>
                             </View>
+                        </View>
+
+                        <View style={styles.networkSelector}>
+                            <TouchableOpacity
+                                style={[styles.networkBtn, selectedRpc === NETWORKS.polkadot && styles.networkBtnActive]}
+                                onPress={() => handleNetworkChange(NETWORKS.polkadot)}
+                            >
+                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.polkadot && styles.networkBtnTextActive]}>
+                                    MAINNET
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.networkBtn, selectedRpc === NETWORKS.westend && styles.networkBtnActive]}
+                                onPress={() => handleNetworkChange(NETWORKS.westend)}
+                            >
+                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.westend && styles.networkBtnTextActive]}>
+                                    WESTEND
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </GlassCard>
                 </View>
@@ -416,7 +488,43 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     networkCard: {
-        padding: 16,
+        padding: 20,
+    },
+    networkHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    polkadotLogo: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    networkSelector: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    networkBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.02)',
+    },
+    networkBtnActive: {
+        borderColor: COLORS.azmitaRed,
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+    },
+    networkBtnText: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.textSecondary,
+        letterSpacing: 1,
+    },
+    networkBtnTextActive: {
+        color: '#FFFFFF',
     },
     statusBadge: {
         flexDirection: 'row',
