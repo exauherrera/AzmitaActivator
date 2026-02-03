@@ -83,6 +83,10 @@ export const OnboardingScreen = ({ onFinish }: { onFinish: () => void }) => {
 
     return (
         <ScreenWrapper style={styles.container}>
+            <TouchableOpacity style={styles.skipButton} onPress={onFinish}>
+                <Text style={styles.skipText}>SALTAR</Text>
+            </TouchableOpacity>
+
             <FlatList
                 data={SLIDES}
                 renderItem={renderItem}
@@ -218,5 +222,22 @@ const styles = StyleSheet.create({
     },
     placeholderButton: {
         height: 60,
+    },
+    skipButton: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        zIndex: 10,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    skipText: {
+        color: COLORS.textSecondary,
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 10,
+        letterSpacing: 2,
     }
 });
