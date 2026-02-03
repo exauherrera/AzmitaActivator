@@ -72,20 +72,26 @@ export const RadarScanner: React.FC<RadarScannerProps> = ({ loading, statusText,
 
                 <GlassCard style={styles.scanCard}>
                     {loading ? (
-                        <View style={styles.loadingWrapper}>
-                            <ActivityIndicator size="large" color={COLORS.azmitaRed} />
-                            {statusText && <Text style={styles.statusLabel}>{statusText}</Text>}
-                        </View>
+                        <ActivityIndicator size="large" color={COLORS.azmitaRed} />
                     ) : (
-                        <View style={styles.idleWrapper}>
-                            <Animated.View style={iconStyle}>
-                                {icon}
-                            </Animated.View>
-                            {statusText && <Text style={styles.readyText}>{statusText}</Text>}
-                        </View>
+                        <Animated.View style={iconStyle}>
+                            {icon}
+                        </Animated.View>
                     )}
                 </GlassCard>
             </View>
+
+            {statusText && (
+                <View style={styles.statusContainer}>
+                    <Text style={[
+                        styles.statusLabel,
+                        loading ? styles.loadingText : styles.readyText
+                    ]}>
+                        {statusText}
+                    </Text>
+                    {!loading && <View style={styles.statusBar} />}
+                </View>
+            )}
         </View>
     );
 };
@@ -94,13 +100,14 @@ const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
         justifyContent: 'center',
-        height: 280,
+        height: 320,
     },
     animationWrapper: {
         width: 220,
         height: 220,
         justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: 20,
     },
     pulseRing: {
         position: 'absolute',
@@ -120,32 +127,39 @@ const styles = StyleSheet.create({
         borderRightColor: 'rgba(230, 57, 70, 0.2)',
     },
     scanCard: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
+        width: 140,
+        height: 140,
+        borderRadius: 70,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 10,
     },
-    loadingWrapper: {
+    statusContainer: {
         alignItems: 'center',
+        marginTop: 10,
     },
     statusLabel: {
-        color: COLORS.textPrimary,
-        marginTop: 15,
         fontSize: 12,
-        fontFamily: 'Inter_700Bold',
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 2,
         textAlign: 'center',
-    },
-    idleWrapper: {
-        alignItems: 'center',
+        textTransform: 'uppercase',
     },
     readyText: {
-        color: COLORS.textSecondary,
-        fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
-        marginTop: 10,
-        letterSpacing: 1,
-        textAlign: 'center',
+        color: COLORS.azmitaRed,
+        textShadowColor: 'rgba(230, 57, 70, 0.5)',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 10,
+    },
+    loadingText: {
+        color: '#FFFFFF',
+    },
+    statusBar: {
+        width: 40,
+        height: 2,
+        backgroundColor: COLORS.azmitaRed,
+        marginTop: 8,
+        borderRadius: 1,
+        opacity: 0.6,
     }
 });
