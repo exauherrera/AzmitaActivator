@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
         shadowRadius: 40,
         elevation: 10,
     },
-    阻    ruleNumber: {
+    ruleNumber: {
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.azmitaRed,
         fontSize: 12,
