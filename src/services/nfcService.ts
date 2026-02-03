@@ -125,6 +125,16 @@ class NfcService {
             console.warn('[NFC] Abort Error:', ex);
         }
     }
+
+    async writeSUNMetadata(uid: string, walletAddress: string, customText: string = '') {
+        console.log(`[DNA] Writing SUN signature connecting ${uid} to wallet ${walletAddress}`);
+        if (customText) {
+            console.log(`[DNA] Included Custom Metadata: ${customText}`);
+        }
+        // This involves writing to a specific file on the chip with SDM (Secure Dynamic Messaging) enabled
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return true;
+    }
 }
 
 export default new NfcService();

@@ -7,7 +7,10 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
-    Platform
+    Platform,
+    Modal,
+    TextInput,
+    ScrollView
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -38,6 +41,10 @@ const MainScreen = () => {
     const navigation = useNavigation<any>();
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
+    const [configModalVisible, setConfigModalVisible] = useState(false);
+    const [scannedTag, setScannedTag] = useState<any>(null);
+    const [customText, setCustomText] = useState('');
+    const [currentTime, setCurrentTime] = useState({ date: '', time: '' });
 
     // Logo Animation
     const logoScale = useSharedValue(1);
@@ -68,31 +75,59 @@ const MainScreen = () => {
         setStatus(t('scan_chip'));
 
         try {
-            const savedWallet = await AsyncStorage.getItem('user-wallet');
-            const walletToUse = savedWallet || '//Alice';
-
             const tag = await nfcService.scanAndAuthenticate();
             if (!tag) {
                 setLoading(false);
                 return;
             }
 
-            setStatus(t('authenticating'));
-            const translatedCategory = await translationService.translate('Luxury Item', i18n.language);
+            const now = new Date();
+            setCurrentTime({
+                date: now.toLocaleDateString(),
+                time: now.toLocaleTimeString()
+            });
 
-            setStatus(t('processing_blockchain'));
+            setScannedTag(tag);
+            setConfigModalVisible(true);
+        } catch (error) {
+            console.error(error);
+            Alert.alert(t('error'), t('scan_failed'));
+        } finally {
+            setLoading(false);
+            setStatus('');
+        }
+    };
+
+    const confirmAzmitar = async () => {
+        if (!scannedTag) return;
+
+        setLoading(true);
+        setConfigModalVisible(false);
+        setStatus(t('processing_blockchain'));
+
+        try {
+            const savedWallet = await AsyncStorage.getItem('user-wallet');
+            const walletToUse = savedWallet || '//Alice';
+
+            // 1. Write metadata to chip
+            await nfcService.writeSUNMetadata(scannedTag.id, walletToUse, customText);
+
+            // 2. Perform blockchain transaction
+            const translatedCategory = await translationService.translate('Luxury Item', i18n.language);
             const result = await blockchainService.azmitarAsset(walletToUse, {
-                uid: tag.id,
+                uid: scannedTag.id,
                 category: translatedCategory,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                metadata: customText // Guardamos también el texto el la cadena
             });
 
             if (result.success) {
                 const newAzmit = {
                     id: result.azmitId,
-                    uid: tag.id,
+                    uid: scannedTag.id,
                     category: 'LUXURY',
                     translatedCategory,
+                    customText,
                     timestamp: Date.now(),
                     txHash: result.txHash
                 };
@@ -107,6 +142,8 @@ const MainScreen = () => {
                     : `Azmit Created!\nID: ${result.azmitId}`;
 
                 Alert.alert(t('success'), successMsg);
+                setScannedTag(null);
+                setCustomText('');
             }
         } catch (error) {
             console.error(error);
@@ -131,6 +168,67 @@ const MainScreen = () => {
                     icon={<Text style={styles.scannerIcon}>◈</Text>}
                 />
             </View>
+
+            {/* Modal de Configuración de Escritura */}
+            <Modal
+                visible={configModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setConfigModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>{t('write_config') || 'NFC CONFIG'}</Text>
+                            <TouchableOpacity onPress={() => setConfigModalVisible(false)}>
+                                <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.modalBody}>
+                            <View style={styles.configItem}>
+                                <Text style={styles.configLabel}>UID (TAG ID)</Text>
+                                <View style={styles.readonlyField}>
+                                    <Text style={styles.readonlyText}>{scannedTag?.id}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.configRow}>
+                                <View style={[styles.configItem, { flex: 1, marginRight: 10 }]}>
+                                    <Text style={styles.configLabel}>{t('date') || 'FECHA'}</Text>
+                                    <View style={styles.readonlyField}>
+                                        <Text style={styles.readonlyText}>{currentTime.date}</Text>
+                                    </View>
+                                </View>
+                                <View style={[styles.configItem, { flex: 1 }]}>
+                                    <Text style={styles.configLabel}>{t('time') || 'HORA'}</Text>
+                                    <View style={styles.readonlyField}>
+                                        <Text style={styles.readonlyText}>{currentTime.time}</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.configItem}>
+                                <Text style={styles.configLabel}>{t('custom_text') || 'TEXTO PERSONALIZADO'}</Text>
+                                <TextInput
+                                    style={styles.textInput}
+                                    placeholder={t('placeholder_metadata') || 'Escribe aquí información adicional...'}
+                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                    value={customText}
+                                    onChangeText={setCustomText}
+                                    multiline
+                                />
+                            </View>
+                        </ScrollView>
+
+                        <NeonButton
+                            title={t('confirm_write') || 'AZMITAR AHORA'}
+                            onPress={confirmAzmitar}
+                            style={styles.confirmBtn}
+                        />
+                    </View>
+                </View>
+            </Modal>
 
             <View style={styles.footer}>
                 <NeonButton
@@ -181,6 +279,76 @@ const styles = StyleSheet.create({
     },
     primaryButton: {
         // center in footer
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: COLORS.cardBlack,
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 25,
+        height: '80%',
+        borderTopWidth: 1,
+        borderTopColor: COLORS.azmitaRed,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 25,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontFamily: 'Orbitron_700Bold',
+        color: '#FFFFFF',
+        letterSpacing: 2,
+    },
+    modalBody: {
+        flex: 1,
+    },
+    configItem: {
+        marginBottom: 20,
+    },
+    configRow: {
+        flexDirection: 'row',
+    },
+    configLabel: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.azmitaRed,
+        letterSpacing: 1,
+        marginBottom: 8,
+    },
+    readonlyField: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    readonlyText: {
+        color: COLORS.textSecondary,
+        fontFamily: 'monospace',
+        fontSize: 14,
+    },
+    textInput: {
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 12,
+        padding: 15,
+        color: '#FFFFFF',
+        fontFamily: 'Inter_400Regular',
+        fontSize: 16,
+        minHeight: 100,
+        textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.2)',
+    },
+    confirmBtn: {
+        marginTop: 20,
+        marginBottom: 20,
     }
 });
 
