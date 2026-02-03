@@ -25,6 +25,7 @@ const resources = {
             subscan_view: 'View on Subscan',
             hash_detected: 'Hash Detected',
             save_record: 'Save Record',
+            ready_to_scan: 'Ready to Write',
         }
     },
     es: {
@@ -49,6 +50,7 @@ const resources = {
             subscan_view: 'Ver en Subscan',
             hash_detected: 'Hash Detectado',
             save_record: 'Guardar Registro',
+            ready_to_scan: 'Listo para Escribir',
         }
     }
 };
