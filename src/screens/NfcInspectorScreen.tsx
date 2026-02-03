@@ -20,11 +20,13 @@ import { COLORS } from '../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
 const NfcInspectorScreen = () => {
     const { t } = useTranslation();
+    const navigation = useNavigation();
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
@@ -71,7 +73,12 @@ const NfcInspectorScreen = () => {
 
     return (
         <ScreenWrapper style={styles.container}>
-            <Text style={styles.title}>{t('inspector')}</Text>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Text style={styles.backButton}>←</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>{t('inspector')}</Text>
+            </View>
 
             <RadarScanner
                 loading={loading}
@@ -141,15 +148,25 @@ const NfcInspectorScreen = () => {
 
 const styles = StyleSheet.create({
     container: {
-        paddingTop: 60,
+        paddingHorizontal: 20,
+    },
+    header: {
+        marginTop: 60,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 30,
+    },
+    backButton: {
+        color: COLORS.azmitaRed,
+        fontSize: 30,
+        marginRight: 20,
+        fontWeight: '300',
     },
     title: {
         fontSize: 32,
         fontFamily: 'Orbitron_900Black',
         color: '#FFFFFF',
-        textAlign: 'center',
-        marginBottom: 30,
-        letterSpacing: 4,
+        letterSpacing: 2,
     },
     scanBtn: {
         marginHorizontal: 20,
