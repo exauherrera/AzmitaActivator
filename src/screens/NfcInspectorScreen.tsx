@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -31,7 +32,7 @@ const NfcInspectorScreen = () => {
     const ring2 = useSharedValue(0);
     const iconScale = useSharedValue(1);
 
-    React.useEffect(() => {
+    useEffect(() => {
         ring1.value = withRepeat(withDelay(0, withTiming(1, { duration: 3000 })), -1);
         ring2.value = withRepeat(withDelay(1500, withTiming(1, { duration: 3000 })), -1);
         iconScale.value = withRepeat(
