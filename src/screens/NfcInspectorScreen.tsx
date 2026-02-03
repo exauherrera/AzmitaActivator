@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -89,51 +89,65 @@ const NfcInspectorScreen = () => {
                 <Text style={styles.title}>{t('inspector')}</Text>
             </View>
 
-            <RadarScanner
-                loading={loading}
-                statusText={
-                    loading
-                        ? t('reading')
-                        : tagData
-                            ? t('scan_tag')
-                            : t('instruction_scan')
-                }
-                icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
-            />
+            {!tagData && (
+                <>
+                    <RadarScanner
+                        loading={loading}
+                        statusText={
+                            loading
+                                ? t('reading')
+                                : t('instruction_scan')
+                        }
+                        icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
+                    />
 
-            <NeonButton
-                title={loading ? t('reading') : t('scan_tag')}
-                onPress={handleScan}
-                style={styles.scanBtn}
-                disabled={loading}
-            />
+                    <NeonButton
+                        title={loading ? t('reading') : t('scan_tag')}
+                        onPress={handleScan}
+                        style={styles.scanBtn}
+                        disabled={loading}
+                    />
+                </>
+            )}
 
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, tagData && styles.fullScroll]}
+                showsVerticalScrollIndicator={false}
             >
                 {tagData && (
-                    <GlassCard style={styles.card}>
-                        <View style={styles.section}>
+                    <View style={styles.resultsContainer}>
+                        <GlassCard style={styles.uidCard}>
                             <Text style={styles.label}>UID</Text>
                             <Text style={styles.value}>{tagData.id}</Text>
-                        </View>
+                        </GlassCard>
 
-                        <View style={styles.section}>
-                            <Text style={styles.label}>{t('tech_types')}</Text>
-                            <Text style={styles.subvalue}>{tagData.techTypes.join(', ')}</Text>
+                        <View style={styles.detailSection}>
+                            <Text style={styles.sectionTitle}>{t('tech_types')}</Text>
+                            <View style={styles.techList}>
+                                {tagData.techTypes.map((tech: string, i: number) => (
+                                    <View key={i} style={styles.techBadge}>
+                                        <Text style={styles.techText}>{tech.split('.').pop()}</Text>
+                                    </View>
+                                ))}
+                            </View>
                         </View>
 
                         {tagData.ndefMessage && (
-                            <View style={styles.section}>
-                                <Text style={styles.label}>{t('ndef_message')}</Text>
-                                <Text style={styles.ndefText}>{tagData.ndefMessage}</Text>
+                            <View style={styles.detailSection}>
+                                <Text style={styles.sectionTitle}>{t('ndef_message')}</Text>
+                                <View style={styles.ndefContainer}>
+                                    <Text style={styles.ndefText}>{tagData.ndefMessage}</Text>
+                                </View>
                             </View>
                         )}
 
                         {extractedHash && (
                             <View style={styles.hashSection}>
-                                <Text style={styles.hashLabel}>{t('hash_detected')}</Text>
+                                <View style={styles.hashHeader}>
+                                    <Ionicons name="link-outline" size={16} color={COLORS.azmitaRed} />
+                                    <Text style={styles.hashLabel}>{t('hash_detected')}</Text>
+                                </View>
                                 <Text style={styles.hashValue}>{extractedHash}</Text>
                                 <NeonButton
                                     title={t('subscan_view')}
@@ -143,12 +157,18 @@ const NfcInspectorScreen = () => {
                             </View>
                         )}
 
-                        <View style={styles.actionRow}>
-                            <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-                                <Text style={styles.saveText}>{t('save_record')}</Text>
+                        <View style={styles.footerActions}>
+                            <TouchableOpacity onPress={handleSave} style={styles.actionBtn}>
+                                <Ionicons name="bookmark-outline" size={20} color={COLORS.textSecondary} />
+                                <Text style={styles.actionText}>{t('save_record')}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity onPress={() => setTagData(null)} style={styles.actionBtn}>
+                                <Ionicons name="refresh-outline" size={20} color={COLORS.azmitaRed} />
+                                <Text style={[styles.actionText, { color: COLORS.azmitaRed }]}>{t('scan_tag')}</Text>
                             </TouchableOpacity>
                         </View>
-                    </GlassCard>
+                    </View>
                 )}
             </ScrollView>
         </ScreenWrapper>
@@ -183,13 +203,23 @@ const styles = StyleSheet.create({
     },
     scroll: {
         flex: 1,
-        paddingHorizontal: 20,
     },
     scrollContent: {
-        paddingBottom: 120, // Prevenir que el contenido final sea tapado por el menú
+        paddingBottom: 120,
     },
-    card: {
-        marginBottom: 20,
+    fullScroll: {
+        paddingHorizontal: 0,
+    },
+    resultsContainer: {
+        flex: 1,
+        paddingHorizontal: 20,
+    },
+    uidCard: {
+        padding: 25,
+        marginBottom: 30,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
     },
     section: {
         marginBottom: 20,
@@ -197,74 +227,110 @@ const styles = StyleSheet.create({
         borderBottomColor: 'rgba(230, 57, 70, 0.1)',
         paddingBottom: 10,
     },
-    label: {
+    detailSection: {
+        marginBottom: 30,
+    },
+    sectionTitle: {
         fontSize: 10,
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.azmitaRed,
         letterSpacing: 2,
-        marginBottom: 8,
+        marginBottom: 15,
+        textTransform: 'uppercase',
+    },
+    label: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.textSecondary,
+        letterSpacing: 2,
+        marginBottom: 10,
     },
     value: {
-        fontSize: 20,
+        fontSize: 26,
         fontFamily: 'Inter_700Bold',
         color: '#FFFFFF',
+        textAlign: 'center',
     },
-    subvalue: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
+    techList: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    techBadge: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    techText: {
+        fontSize: 12,
+        color: '#FFFFFF',
+        fontFamily: 'Inter_400Regular',
+    },
+    ndefContainer: {
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        borderRadius: 12,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     ndefText: {
-        fontSize: 16,
-        fontFamily: 'monospace',
+        fontSize: 15,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         color: '#FFFFFF',
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        padding: 10,
-        borderRadius: 8,
+        lineHeight: 22,
     },
     hashSection: {
-        marginTop: 20,
-        padding: 15,
-        backgroundColor: 'rgba(230, 57, 70, 0.1)',
-        borderRadius: 12,
+        padding: 20,
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: COLORS.azmitaRed,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        marginBottom: 30,
+    },
+    hashHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+        justifyContent: 'center',
     },
     hashLabel: {
         fontSize: 9,
         fontFamily: 'Orbitron_900Black',
         color: COLORS.azmitaRed,
-        textAlign: 'center',
-        marginBottom: 10,
     },
     hashValue: {
         fontSize: 11,
-        color: '#FFFFFF',
+        color: COLORS.textSecondary,
         textAlign: 'center',
-        marginBottom: 15,
+        marginBottom: 20,
         fontFamily: 'monospace',
     },
     subscanBtn: {
         height: 50,
     },
-    actionRow: {
-        marginTop: 30,
-        alignItems: 'center',
+    footerActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 10,
+        paddingTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
     },
-    saveBtn: {
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         padding: 10,
     },
-    saveText: {
+    actionText: {
         fontSize: 12,
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.textSecondary,
-        letterSpacing: 2,
-    },
-    empty: {
-        textAlign: 'center',
-        color: COLORS.textSecondary,
-        marginTop: 50,
-        fontSize: 14,
-        fontFamily: 'Inter_400Regular',
+        letterSpacing: 1,
     }
 });
 
