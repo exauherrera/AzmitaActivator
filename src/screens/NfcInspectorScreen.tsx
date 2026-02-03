@@ -1,5 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withRepeat,
+    withTiming,
+    withDelay,
+    withSequence,
+    interpolate
+} from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
@@ -17,6 +25,34 @@ const NfcInspectorScreen = () => {
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
+
+    // Animations
+    const ring1 = useSharedValue(0);
+    const ring2 = useSharedValue(0);
+    const iconScale = useSharedValue(1);
+
+    React.useEffect(() => {
+        ring1.value = withRepeat(withDelay(0, withTiming(1, { duration: 3000 })), -1);
+        ring2.value = withRepeat(withDelay(1500, withTiming(1, { duration: 3000 })), -1);
+        iconScale.value = withRepeat(
+            withSequence(withTiming(1.1, { duration: 1000 }), withTiming(1, { duration: 1000 })),
+            -1
+        );
+    }, []);
+
+    const ring1Style = useAnimatedStyle(() => ({
+        transform: [{ scale: interpolate(ring1.value, [0, 1], [0.5, 2]) }],
+        opacity: interpolate(ring1.value, [0, 0.5, 1], [0, 0.5, 0]),
+    }));
+
+    const ring2Style = useAnimatedStyle(() => ({
+        transform: [{ scale: interpolate(ring2.value, [0, 1], [0.5, 2]) }],
+        opacity: interpolate(ring2.value, [0, 0.5, 1], [0, 0.5, 0]),
+    }));
+
+    const iconStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: iconScale.value }],
+    }));
 
     const handleScan = async () => {
         setLoading(true);
@@ -214,6 +250,33 @@ const styles = StyleSheet.create({
         marginTop: 50,
         fontSize: 14,
         fontFamily: 'Inter_400Regular',
+    },
+    scannerContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 250,
+        marginBottom: 20,
+    },
+    animationWrapper: {
+        width: 200,
+        height: 200,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pulseRing: {
+        position: 'absolute',
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        borderWidth: 2,
+        borderColor: COLORS.azmitaRed,
+    },
+    scanCard: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        justifyContent: 'center',
+        alignItems: 'center',
     }
 });
 
