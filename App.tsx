@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import './src/i18n';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import NfcInspectorScreen from './src/screens/NfcInspectorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -33,8 +34,8 @@ const TabNavigator = () => {
           backgroundColor: COLORS.cardBlack,
           borderTopColor: COLORS.glassBorder,
           borderTopWidth: 1,
-          height: 70,
-          paddingBottom: 10,
+          height: Platform.OS === 'android' ? 75 : 85, // Adjust for premium look
+          paddingBottom: Platform.OS === 'android' ? 15 : 30, // Default padding, safe area will add more if needed
         },
         tabBarActiveTintColor: COLORS.azmitaRed,
         tabBarInactiveTintColor: COLORS.textSecondary,
@@ -115,11 +116,13 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="TabNav" component={TabNavigator} />
-        <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="TabNav" component={TabNavigator} />
+          <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
