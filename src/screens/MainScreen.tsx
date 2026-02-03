@@ -121,16 +121,6 @@ const MainScreen = () => {
                     onPress={handleAzmitar}
                     style={styles.primaryButton}
                 />
-
-                <TouchableOpacity
-                    style={styles.secondaryAction}
-                    onPress={() => navigation.navigate('Vault')}
-                >
-                    <GlassCard style={styles.vaultCard}>
-                        <Text style={styles.vaultText}>{t('vault')}</Text>
-                        <Text style={styles.vaultArrow}>→</Text>
-                    </GlassCard>
-                </TouchableOpacity>
             </View>
         </ScreenWrapper>
     );
@@ -172,27 +162,7 @@ const styles = StyleSheet.create({
         paddingBottom: 50,
     },
     primaryButton: {
-        marginBottom: 20,
-    },
-    secondaryAction: {
-        borderRadius: 24,
-    },
-    vaultCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 20,
-        paddingHorizontal: 24,
-    },
-    vaultText: {
-        color: COLORS.textPrimary,
-        fontSize: 16,
-        fontFamily: 'Inter_700Bold',
-        letterSpacing: 1,
-    },
-    vaultArrow: {
-        color: COLORS.azmitaRed,
-        fontSize: 20,
+        // center in footer
     }
 });
 
