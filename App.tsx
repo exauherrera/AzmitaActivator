@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import './src/i18n';
+import { useTranslation } from 'react-i18next';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import { COLORS } from './src/theme/colors';
 import { NavigationContainer } from '@react-navigation/native';
@@ -16,43 +17,49 @@ import AssetDetailScreen from './src/screens/AssetDetailScreen';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import NfcInspectorScreen from './src/screens/NfcInspectorScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const TabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarStyle: {
-        backgroundColor: COLORS.cardBlack,
-        borderTopColor: COLORS.glassBorder,
-        borderTopWidth: 1,
-        height: 70,
-        paddingBottom: 10,
-      },
-      tabBarActiveTintColor: COLORS.azmitaRed,
-      tabBarInactiveTintColor: COLORS.textSecondary,
-      tabBarLabelStyle: {
-        fontFamily: 'Inter_700Bold',
-        fontSize: 10,
-        letterSpacing: 1,
-      },
-      tabBarIcon: ({ color, size }) => {
-        let iconName: any;
-        if (route.name === 'Home') iconName = 'scan-outline';
-        else if (route.name === 'Vault') iconName = 'wallet-outline';
-        else if (route.name === 'Inspector') iconName = 'search-outline';
-        return <Ionicons name={iconName} size={size} color={color} />;
-      },
-    })}
-  >
-    <Tab.Screen name="Home" component={MainScreen} />
-    <Tab.Screen name="Vault" component={VaultScreen} />
-    <Tab.Screen name="Inspector" component={NfcInspectorScreen} />
-  </Tab.Navigator>
-);
+const TabNavigator = () => {
+  const { t } = useTranslation();
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: COLORS.cardBlack,
+          borderTopColor: COLORS.glassBorder,
+          borderTopWidth: 1,
+          height: 70,
+          paddingBottom: 10,
+        },
+        tabBarActiveTintColor: COLORS.azmitaRed,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarLabelStyle: {
+          fontFamily: 'Inter_700Bold',
+          fontSize: 10,
+          letterSpacing: 1,
+        },
+        tabBarIcon: ({ color, size }) => {
+          let iconName: any;
+          if (route.name === 'Home') iconName = 'scan-outline';
+          else if (route.name === 'Vault') iconName = 'wallet-outline';
+          else if (route.name === 'Inspector') iconName = 'search-outline';
+          else if (route.name === 'Settings') iconName = 'settings-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen name="Home" component={MainScreen} options={{ tabBarLabel: t('azmitar') }} />
+      <Tab.Screen name="Vault" component={VaultScreen} options={{ tabBarLabel: t('vault') }} />
+      <Tab.Screen name="Inspector" component={NfcInspectorScreen} options={{ tabBarLabel: t('inspector') }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('settings') }} />
+    </Tab.Navigator>
+  );
+};
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);

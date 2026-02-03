@@ -57,6 +57,9 @@ const MainScreen = () => {
         setStatus(t('scan_chip'));
 
         try {
+            const savedWallet = await AsyncStorage.getItem('user-wallet');
+            const walletToUse = savedWallet || '//Alice';
+
             const tag = await nfcService.scanAndAuthenticate();
             if (!tag) {
                 setLoading(false);
@@ -67,7 +70,7 @@ const MainScreen = () => {
             const translatedCategory = await translationService.translate('Luxury Item', i18n.language);
 
             setStatus(t('processing_blockchain'));
-            const result = await blockchainService.azmitarAsset('//Alice', {
+            const result = await blockchainService.azmitarAsset(walletToUse, {
                 uid: tag.id,
                 category: translatedCategory,
                 timestamp: Date.now()
@@ -88,11 +91,15 @@ const MainScreen = () => {
                 vault.unshift(newAzmit);
                 await AsyncStorage.setItem('azmit-vault', JSON.stringify(vault));
 
-                Alert.alert(t('success'), `Azmit Created!\nID: ${result.azmitId}`);
+                const successMsg = i18n.language === 'es'
+                    ? `¡Azmit Creado!\nID: ${result.azmitId}`
+                    : `Azmit Created!\nID: ${result.azmitId}`;
+
+                Alert.alert(t('success'), successMsg);
             }
         } catch (error) {
             console.error(error);
-            Alert.alert(t('error'), 'Azmitization failed');
+            Alert.alert(t('error'), t('azmit_failed'));
         } finally {
             setLoading(false);
             setStatus('');

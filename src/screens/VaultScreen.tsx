@@ -71,8 +71,8 @@ const VaultScreen = () => {
                 contentContainerStyle={styles.list}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>Vault is empty</Text>
-                        <Text style={styles.emptySubtext}>Bind your first physical asset to start.</Text>
+                        <Text style={styles.emptyText}>{t('vault_empty')}</Text>
+                        <Text style={styles.emptySubtext}>{t('vault_empty_sub')}</Text>
                     </View>
                 }
             />

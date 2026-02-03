@@ -46,7 +46,7 @@ const NfcInspectorScreen = () => {
                 }
             }
         } catch (err) {
-            Alert.alert(t('error'), 'No se pudo leer el tag');
+            Alert.alert(t('error'), t('scan_failed'));
         } finally {
             setLoading(false);
         }
@@ -60,7 +60,7 @@ const NfcInspectorScreen = () => {
             await AsyncStorage.setItem('saved-inspects', JSON.stringify(list.slice(0, 20)));
             Alert.alert(t('success'), t('save_record'));
         } catch (e) {
-            Alert.alert(t('error'), 'No se pudo guardar');
+            Alert.alert(t('error'), t('save_failed'));
         }
     };
 
@@ -87,7 +87,7 @@ const NfcInspectorScreen = () => {
                         ? t('reading')
                         : tagData
                             ? t('scan_tag')
-                            : 'Toca un tag para inspeccionar'
+                            : t('instruction_scan')
                 }
                 icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
             />
@@ -111,13 +111,13 @@ const NfcInspectorScreen = () => {
                         </View>
 
                         <View style={styles.section}>
-                            <Text style={styles.label}>TECNOLOGÍAS</Text>
+                            <Text style={styles.label}>{t('tech_types')}</Text>
                             <Text style={styles.subvalue}>{tagData.techTypes.join(', ')}</Text>
                         </View>
 
                         {tagData.ndefMessage && (
                             <View style={styles.section}>
-                                <Text style={styles.label}>MENSAJE NDEF</Text>
+                                <Text style={styles.label}>{t('ndef_message')}</Text>
                                 <Text style={styles.ndefText}>{tagData.ndefMessage}</Text>
                             </View>
                         )}
