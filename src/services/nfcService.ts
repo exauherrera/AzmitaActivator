@@ -1,4 +1,8 @@
-import NfcManager, { NfcTech } from 'react-native-nfc-manager';
+import { Platform } from 'react-native';
+// Safe import for web
+const NfcManager = Platform.OS !== 'web' ? require('react-native-nfc-manager').default : null;
+const { NfcTech } = Platform.OS !== 'web' ? require('react-native-nfc-manager') : { NfcTech: {} };
+
 import CryptoJS from 'crypto-js';
 
 /**
@@ -19,6 +23,7 @@ class NfcService {
     };
 
     async readRawTag() {
+        if (!NfcManager) return null;
         try {
             await NfcManager.start();
             await NfcManager.requestTechnology([
@@ -32,7 +37,7 @@ class NfcService {
 
             let ndefData = null;
             if (tag.ndefMessage) {
-                ndefData = tag.ndefMessage.map(record => {
+                ndefData = tag.ndefMessage.map((record: any) => {
                     // Extract payload from NDEF record
                     const payload = record.payload;
                     // For text records, first byte is encoding/lang length
@@ -56,6 +61,7 @@ class NfcService {
     }
 
     async scanAndAuthenticate() {
+        if (!NfcManager) return null;
         try {
             await NfcManager.start();
             await NfcManager.requestTechnology([NfcTech.IsoDep]);

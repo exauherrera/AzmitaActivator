@@ -1,10 +1,14 @@
-import 'react-native-get-random-values';
-import { Buffer } from 'buffer';
-import process from 'process';
-import 'fast-text-encoding';
+import { Platform } from 'react-native';
 
-global.Buffer = global.Buffer || Buffer;
-global.process = global.process || process;
+if (Platform.OS !== 'web') {
+    require('react-native-get-random-values');
+    const { Buffer } = require('buffer');
+    const process = require('process');
+    require('fast-text-encoding');
+
+    global.Buffer = global.Buffer || Buffer;
+    global.process = global.process || process;
+}
 
 import { registerRootComponent } from 'expo';
 
