@@ -231,43 +231,6 @@ const styles = StyleSheet.create({
         marginTop: 50,
         fontSize: 14,
         fontFamily: 'Inter_400Regular',
-    },
-    scannerContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 250,
-        marginBottom: 20,
-    },
-    animationWrapper: {
-        width: 200,
-        height: 200,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    pulseRing: {
-        position: 'absolute',
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        borderWidth: 2,
-        borderColor: COLORS.azmitaRed,
-    },
-    scanCard: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    sweep: {
-        position: 'absolute',
-        width: 180,
-        height: 180,
-        borderRadius: 90,
-        borderWidth: 2,
-        borderColor: 'transparent',
-        borderTopColor: 'rgba(230, 57, 70, 0.6)',
-        borderRightColor: 'rgba(230, 57, 70, 0.2)',
     }
 });
 

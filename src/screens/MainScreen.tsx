@@ -162,49 +162,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    animationContainer: {
-        width: width * 0.7,
-        height: width * 0.7,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    ring: {
-        position: 'absolute',
-        width: width * 0.6,
-        height: width * 0.6,
-        borderRadius: width * 0.3,
-        borderWidth: 2,
-        borderColor: COLORS.azmitaRed,
-    },
-    scannerCard: {
-        width: width * 0.6,
-        height: width * 0.6,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingWrapper: {
-        alignItems: 'center',
-    },
-    statusLabel: {
-        color: COLORS.textPrimary,
-        marginTop: 20,
-        fontSize: 14,
-        fontFamily: 'Inter_700Bold',
-    },
-    idleWrapper: {
-        alignItems: 'center',
-    },
     scannerIcon: {
         fontSize: 60,
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.azmitaRed,
-    },
-    readyText: {
-        color: COLORS.textSecondary,
-        fontSize: 11,
-        fontFamily: 'Orbitron_700Bold',
-        marginTop: 10,
-        letterSpacing: 2,
     },
     footer: {
         padding: 30,
