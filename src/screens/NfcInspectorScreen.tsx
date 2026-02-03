@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
 import { NeonButton } from '../components/NeonButton';
+import { RadarScanner } from '../components/RadarScanner';
 import nfcService from '../services/nfcService';
 import { COLORS } from '../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,46 +28,6 @@ const NfcInspectorScreen = () => {
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
-
-    // Animations
-    const ring1 = useSharedValue(0);
-    const ring2 = useSharedValue(0);
-    const iconScale = useSharedValue(1);
-    const rotation = useSharedValue(0);
-
-    useEffect(() => {
-        ring1.value = withRepeat(withDelay(0, withTiming(1, { duration: 3000 })), -1);
-        ring2.value = withRepeat(withDelay(1500, withTiming(1, { duration: 3000 })), -1);
-        iconScale.value = withRepeat(
-            withSequence(withTiming(1.1, { duration: 1000 }), withTiming(1, { duration: 1000 })),
-            -1
-        );
-        rotation.value = withRepeat(
-            withTiming(360, { duration: 4000, easing: Easing.linear }),
-            -1
-        );
-    }, []);
-
-    const radarSweepStyle = useAnimatedStyle(() => ({
-        transform: [{ rotate: `${rotation.value}deg` }],
-        opacity: loading ? 1 : 0.4,
-    }));
-
-    const ring1Style = useAnimatedStyle(() => ({
-        transform: [{ scale: interpolate(ring1.value, [0, 1], [0.5, 2]) }],
-        opacity: interpolate(ring1.value, [0, 0.5, 1], [0, 0.5, 0]),
-        borderColor: loading ? '#FFFFFF' : COLORS.azmitaRed,
-    }));
-
-    const ring2Style = useAnimatedStyle(() => ({
-        transform: [{ scale: interpolate(ring2.value, [0, 1], [0.5, 2]) }],
-        opacity: interpolate(ring2.value, [0, 0.5, 1], [0, 0.5, 0]),
-        borderColor: loading ? '#FFFFFF' : COLORS.azmitaRed,
-    }));
-
-    const iconStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: iconScale.value }],
-    }));
 
     const handleScan = async () => {
         setLoading(true);
@@ -112,25 +73,11 @@ const NfcInspectorScreen = () => {
         <ScreenWrapper style={styles.container}>
             <Text style={styles.title}>{t('inspector')}</Text>
 
-            <View style={styles.scannerContainer}>
-                <View style={styles.animationWrapper}>
-                    <Animated.View style={[styles.pulseRing, ring1Style]} />
-                    <Animated.View style={[styles.pulseRing, ring2Style]} />
-
-                    {/* Radar Sweep Arc */}
-                    <Animated.View style={[styles.sweep, radarSweepStyle]} />
-
-                    <GlassCard style={styles.scanCard}>
-                        {loading ? (
-                            <ActivityIndicator size="large" color={COLORS.azmitaRed} />
-                        ) : (
-                            <Animated.View style={iconStyle}>
-                                <Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />
-                            </Animated.View>
-                        )}
-                    </GlassCard>
-                </View>
-            </View>
+            <RadarScanner
+                loading={loading}
+                statusText={loading ? t('reading') : undefined}
+                icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
+            />
 
             <NeonButton
                 title={loading ? t('reading') : t('scan_tag')}

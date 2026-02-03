@@ -28,6 +28,7 @@ import blockchainService from '../services/blockchainService';
 import translationService from '../services/translationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { RadarScanner } from '../components/RadarScanner';
 
 const { width } = Dimensions.get('window');
 
@@ -37,26 +38,15 @@ const MainScreen = () => {
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
 
-    // Animations
-    const ring1 = useSharedValue(0);
-    const ring2 = useSharedValue(0);
+    // Logo Animation
     const logoScale = useSharedValue(1);
 
     useEffect(() => {
-        ring1.value = withRepeat(withDelay(0, withTiming(1, { duration: 3000 })), -1);
-        ring2.value = withRepeat(withDelay(1500, withTiming(1, { duration: 3000 })), -1);
-        logoScale.value = withRepeat(withSequence(withTiming(1.05, { duration: 1000 }), withTiming(1, { duration: 1000 })), -1);
+        logoScale.value = withRepeat(
+            withSequence(withTiming(1.05, { duration: 1000 }), withTiming(1, { duration: 1000 })),
+            -1
+        );
     }, []);
-
-    const ring1Style = useAnimatedStyle(() => ({
-        transform: [{ scale: interpolate(ring1.value, [0, 1], [0.5, 2]) }],
-        opacity: interpolate(ring1.value, [0, 0.5, 1], [0, 0.5, 0]),
-    }));
-
-    const ring2Style = useAnimatedStyle(() => ({
-        transform: [{ scale: interpolate(ring2.value, [0, 1], [0.5, 2]) }],
-        opacity: interpolate(ring2.value, [0, 0.5, 1], [0, 0.5, 0]),
-    }));
 
     const logoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: logoScale.value }],
@@ -117,23 +107,11 @@ const MainScreen = () => {
             </View>
 
             <View style={styles.mainAction}>
-                <View style={styles.animationContainer}>
-                    <Animated.View style={[styles.ring, ring1Style]} />
-                    <Animated.View style={[styles.ring, ring2Style]} />
-                    <GlassCard style={styles.scannerCard}>
-                        {loading ? (
-                            <View style={styles.loadingWrapper}>
-                                <ActivityIndicator size="large" color={COLORS.azmitaRed} />
-                                <Text style={styles.statusLabel}>{status}</Text>
-                            </View>
-                        ) : (
-                            <View style={styles.idleWrapper}>
-                                <Text style={styles.scannerIcon}>◈</Text>
-                                <Text style={styles.readyText}>{t('ready_to_scan') || 'READY TO BIND'}</Text>
-                            </View>
-                        )}
-                    </GlassCard>
-                </View>
+                <RadarScanner
+                    loading={loading}
+                    statusText={loading ? status : t('ready_to_scan')}
+                    icon={<Text style={styles.scannerIcon}>◈</Text>}
+                />
             </View>
 
             <View style={styles.footer}>
