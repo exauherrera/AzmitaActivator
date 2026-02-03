@@ -26,8 +26,9 @@ import { ScreenWrapper } from '../components/ScreenWrapper';
 import nfcService from '../services/nfcService';
 import blockchainService from '../services/blockchainService';
 import translationService from '../services/translationService';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { RadarScanner } from '../components/RadarScanner';
 
 const { width } = Dimensions.get('window');
@@ -51,6 +52,16 @@ const MainScreen = () => {
     const logoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: logoScale.value }],
     }));
+
+    useFocusEffect(
+        React.useCallback(() => {
+            return () => {
+                nfcService.abort();
+                setLoading(false);
+                setStatus('');
+            };
+        }, [])
+    );
 
     const handleAzmitar = async () => {
         setLoading(true);

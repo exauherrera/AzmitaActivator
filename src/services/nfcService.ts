@@ -116,11 +116,14 @@ class NfcService {
         return bytes;
     }
 
-    async writeSUNMetadata(uid: string, walletAddress: string) {
-        console.log(`[DNA] Writing SUN signature connecting ${uid} to wallet ${walletAddress}`);
-        // This involves writing to a specific file on the chip with SDM (Secure Dynamic Messaging) enabled
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return true;
+    async abort() {
+        if (!NfcManager) return;
+        try {
+            await NfcManager.cancelTechnologyRequest();
+            console.log('[NFC] Operation aborted manually');
+        } catch (ex) {
+            console.warn('[NFC] Abort Error:', ex);
+        }
     }
 }
 

@@ -20,7 +20,7 @@ import { COLORS } from '../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +30,15 @@ const NfcInspectorScreen = () => {
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            return () => {
+                nfcService.abort();
+                setLoading(false);
+            };
+        }, [])
+    );
 
     const handleScan = async () => {
         setLoading(true);
