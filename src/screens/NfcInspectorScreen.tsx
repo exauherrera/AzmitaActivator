@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
 import { NeonButton } from '../components/NeonButton';
@@ -7,10 +8,12 @@ import nfcService from '../services/nfcService';
 import { COLORS } from '../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
 const NfcInspectorScreen = () => {
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
@@ -23,7 +26,6 @@ const NfcInspectorScreen = () => {
             const data = await nfcService.readRawTag();
             if (data) {
                 setTagData(data);
-                // Extract hash logic: looks for 0x... (64 hex chars)
                 const hashRegex = /0x[a-fA-F0-9]{64}/;
                 const match = data.ndefMessage?.match(hashRegex);
                 if (match) {
@@ -31,7 +33,7 @@ const NfcInspectorScreen = () => {
                 }
             }
         } catch (err) {
-            Alert.alert('Error', 'No se pudo leer el tag');
+            Alert.alert(t('error'), 'No se pudo leer el tag');
         } finally {
             setLoading(false);
         }
@@ -43,9 +45,9 @@ const NfcInspectorScreen = () => {
             const list = saved ? JSON.parse(saved) : [];
             list.unshift({ ...tagData, date: new Date().toISOString() });
             await AsyncStorage.setItem('saved-inspects', JSON.stringify(list.slice(0, 20)));
-            Alert.alert('Éxito', 'Datos guardados localmente');
+            Alert.alert(t('success'), t('save_record'));
         } catch (e) {
-            Alert.alert('Error', 'No se pudo guardar');
+            Alert.alert(t('error'), 'No se pudo guardar');
         }
     };
 
@@ -58,10 +60,10 @@ const NfcInspectorScreen = () => {
 
     return (
         <ScreenWrapper style={styles.container}>
-            <Text style={styles.title}>INSPECTOR</Text>
+            <Text style={styles.title}>{t('inspector')}</Text>
 
             <NeonButton
-                title={loading ? "LEYENDO..." : "ESCANEAR TAG"}
+                title={loading ? t('reading') : t('scan_tag')}
                 onPress={handleScan}
                 style={styles.scanBtn}
                 disabled={loading}
@@ -89,10 +91,10 @@ const NfcInspectorScreen = () => {
 
                         {extractedHash && (
                             <View style={styles.hashSection}>
-                                <Text style={styles.hashLabel}>BLOCKCHAIN HASH DETECTADO</Text>
+                                <Text style={styles.hashLabel}>{t('hash_detected')}</Text>
                                 <Text style={styles.hashValue}>{extractedHash}</Text>
                                 <NeonButton
-                                    title="VER EN SUBSCAN"
+                                    title={t('subscan_view')}
                                     onPress={handleOpenSubscan}
                                     style={styles.subscanBtn}
                                 />
@@ -101,7 +103,7 @@ const NfcInspectorScreen = () => {
 
                         <View style={styles.actionRow}>
                             <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-                                <Text style={styles.saveText}>GUARDAR REGISTRO</Text>
+                                <Text style={styles.saveText}>{t('save_record')}</Text>
                             </TouchableOpacity>
                         </View>
                     </GlassCard>
@@ -214,8 +216,5 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
     }
 });
-
-import { TouchableOpacity as RNTouchableOpacity } from 'react-native';
-const TouchableOpacity = RNTouchableOpacity;
 
 export default NfcInspectorScreen;
