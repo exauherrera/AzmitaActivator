@@ -262,7 +262,7 @@ const SettingsScreen = () => {
                     <GlassCard style={styles.networkCard}>
                         <View style={styles.networkHeader}>
                             <Image
-                                source={require('../../assets/polkadot_icon.png')}
+                                source={require('../../assets/polkadot_icon.jpg')}
                                 style={styles.polkadotLogo}
                             />
                             <View style={styles.infoTextContainer}>
