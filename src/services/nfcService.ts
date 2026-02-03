@@ -18,6 +18,43 @@ class NfcService {
         READ_DATA: 'AD'
     };
 
+    async readRawTag() {
+        try {
+            await NfcManager.start();
+            await NfcManager.requestTechnology([
+                NfcTech.Ndef,
+                NfcTech.NfcA,
+                NfcTech.IsoDep
+            ]);
+
+            const tag = await NfcManager.getTag();
+            if (!tag) return null;
+
+            let ndefData = null;
+            if (tag.ndefMessage) {
+                ndefData = tag.ndefMessage.map(record => {
+                    // Extract payload from NDEF record
+                    const payload = record.payload;
+                    // For text records, first byte is encoding/lang length
+                    // For URIs, first byte is prefix code
+                    return String.fromCharCode(...payload);
+                }).join('\n');
+            }
+
+            return {
+                id: tag.id,
+                techTypes: tag.techTypes,
+                ndefMessage: ndefData,
+                raw: JSON.stringify(tag, null, 2)
+            };
+        } catch (ex) {
+            console.warn('NFC Read Error:', ex);
+            throw ex;
+        } finally {
+            NfcManager.cancelTechnologyRequest();
+        }
+    }
+
     async scanAndAuthenticate() {
         try {
             await NfcManager.start();

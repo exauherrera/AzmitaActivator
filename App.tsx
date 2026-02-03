@@ -15,13 +15,15 @@ import VaultScreen from './src/screens/VaultScreen';
 import AssetDetailScreen from './src/screens/AssetDetailScreen';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import NfcInspectorScreen from './src/screens/NfcInspectorScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TabNavigator = () => (
   <Tab.Navigator
-    screenOptions={{
+    screenOptions={({ route }) => ({
       headerShown: false,
       tabBarStyle: {
         backgroundColor: COLORS.cardBlack,
@@ -36,11 +38,19 @@ const TabNavigator = () => (
         fontFamily: 'Inter_700Bold',
         fontSize: 10,
         letterSpacing: 1,
-      }
-    }}
+      },
+      tabBarIcon: ({ color, size }) => {
+        let iconName: any;
+        if (route.name === 'Home') iconName = 'scan-outline';
+        else if (route.name === 'Vault') iconName = 'wallet-outline';
+        else if (route.name === 'Inspector') iconName = 'search-outline';
+        return <Ionicons name={iconName} size={size} color={color} />;
+      },
+    })}
   >
     <Tab.Screen name="Home" component={MainScreen} />
     <Tab.Screen name="Vault" component={VaultScreen} />
+    <Tab.Screen name="Inspector" component={NfcInspectorScreen} />
   </Tab.Navigator>
 );
 

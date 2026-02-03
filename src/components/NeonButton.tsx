@@ -8,18 +8,24 @@ interface NeonButtonProps {
     title: string;
     subtitle?: string;
     style?: ViewStyle;
+    disabled?: boolean;
 }
 
-export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style }) => {
+export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style, disabled }) => {
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[styles.wrapper, style]}>
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.8}
+            style={[styles.wrapper, style, disabled && styles.disabled]}
+            disabled={disabled}
+        >
             <LinearGradient
-                colors={[COLORS.azmitaRed, '#8B0000']}
+                colors={disabled ? ['#2A2A2A', '#1A1A1A'] : [COLORS.azmitaRed, '#8B0000']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.gradient}
             >
-                <Text style={styles.title}>{title}</Text>
+                <Text style={[styles.title, disabled && styles.disabledText]}>{title}</Text>
                 {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
             </LinearGradient>
         </TouchableOpacity>
@@ -56,5 +62,13 @@ const styles = StyleSheet.create({
         marginTop: 4,
         fontWeight: '500',
         letterSpacing: 1,
+    },
+    disabled: {
+        shadowOpacity: 0,
+        elevation: 0,
+        opacity: 0.5,
+    },
+    disabledText: {
+        color: 'rgba(255, 255, 255, 0.3)',
     },
 });

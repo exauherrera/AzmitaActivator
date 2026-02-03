@@ -19,6 +19,12 @@ const resources = {
             start_activation: 'Start Activation',
             processing_blockchain: 'Processing on Polkadot...',
             azmitado: 'AZMITADO',
+            inspector: 'Inspector',
+            scan_tag: 'Scan Tag',
+            reading: 'Reading...',
+            subscan_view: 'View on Subscan',
+            hash_detected: 'Hash Detected',
+            save_record: 'Save Record',
         }
     },
     es: {
@@ -37,6 +43,12 @@ const resources = {
             start_activation: 'Iniciar Activación',
             processing_blockchain: 'Procesando en Polkadot...',
             azmitado: 'AZMITADO',
+            inspector: 'Inspector',
+            scan_tag: 'Escanear Tag',
+            reading: 'Leyendo...',
+            subscan_view: 'Ver en Subscan',
+            hash_detected: 'Hash Detectado',
+            save_record: 'Guardar Registro',
         }
     }
 };
