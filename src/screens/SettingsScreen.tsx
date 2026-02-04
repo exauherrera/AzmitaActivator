@@ -280,7 +280,11 @@ const SettingsScreen = () => {
 
                                         {showSeed && (
                                             <Animated.View entering={FadeIn} style={styles.mnemonicContainer}>
-                                                <Text style={styles.mnemonicWarning}>{t('mnemonic_warn')}</Text>
+                                                <View style={styles.warningCard}>
+                                                    <Ionicons name="warning-outline" size={24} color="#FFB703" />
+                                                    <Text style={styles.mnemonicWarning}>{t('mnemonic_warn')}</Text>
+                                                </View>
+
                                                 <View style={styles.seedGrid}>
                                                     {savedMnemonic.split(' ').map((word, index) => (
                                                         <View key={index} style={styles.wordBadge}>
@@ -600,58 +604,78 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: COLORS.azmitaRed,
         letterSpacing: 1,
+        textTransform: 'uppercase',
     },
     mnemonicContainer: {
-        marginTop: 10,
-        backgroundColor: 'rgba(230, 57, 70, 0.1)',
-        padding: 15,
-        borderRadius: 12,
+        marginTop: 15,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        padding: 20,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(230, 57, 70, 0.3)',
+        borderColor: 'rgba(230, 57, 70, 0.2)',
+    },
+    warningCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 183, 3, 0.1)',
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 20,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 183, 3, 0.2)',
     },
     mnemonicWarning: {
+        flex: 1,
         color: '#FFB703',
-        fontSize: 11,
+        fontSize: 12,
         fontFamily: 'Orbitron_400Regular',
-        marginBottom: 15,
-        textAlign: 'center',
-        lineHeight: 16,
+        lineHeight: 18,
     },
     seedGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
-        justifyContent: 'center',
+        gap: 10,
+        justifyContent: 'space-between',
     },
     wordBadge: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 10,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        minWidth: '28%',
+        gap: 8,
+        width: '48%', // Ensure 2 per row
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     wordIndex: {
-        color: 'rgba(255,255,255,0.4)',
+        color: COLORS.azmitaRed,
         fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
+        fontFamily: 'Orbitron_900Black',
+        opacity: 0.8,
     },
     wordText: {
         color: '#FFFFFF',
-        fontSize: 13,
+        fontSize: 14,
         fontFamily: 'Orbitron_400Regular',
+        letterSpacing: 0.5,
     },
     copySeedBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: COLORS.azmitaRed,
-        marginTop: 15,
-        paddingVertical: 10,
-        borderRadius: 8,
-        gap: 8,
+        marginTop: 20,
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 10,
+        elevation: 5,
+        shadowColor: COLORS.azmitaRed,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
     },
     copySeedText: {
         color: '#FFFFFF',
