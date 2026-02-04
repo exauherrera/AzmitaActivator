@@ -39,6 +39,7 @@ const SettingsScreen = () => {
     const [tempAddress, setTempAddress] = useState('');
     const [loadingBalance, setLoadingBalance] = useState(false);
     const [selectedRpc, setSelectedRpc] = useState(NETWORKS.polkadot);
+    const [tokenSymbol, setTokenSymbol] = useState('DOT');
     const [showSeed, setShowSeed] = useState(false);
     const [savedMnemonic, setSavedMnemonic] = useState('');
     const rotation = useSharedValue(0);
@@ -84,8 +85,9 @@ const SettingsScreen = () => {
             -1,
             false
         );
-        const bal = await blockchainService.getBalance(walletAddress);
-        setBalance(bal);
+        const { formatted, symbol } = await blockchainService.getBalance(walletAddress);
+        setBalance(formatted);
+        setTokenSymbol(symbol);
         setLoadingBalance(false);
         cancelAnimation(rotation);
         rotation.value = withTiming(0);
@@ -217,7 +219,7 @@ const SettingsScreen = () => {
                                 </Animated.View>
                             </TouchableOpacity>
                         </View>
-                        <Text style={styles.balanceValue}>{balance} <Text style={styles.currency}>DOT</Text></Text>
+                        <Text style={styles.balanceValue}>{balance} <Text style={styles.currency}>{tokenSymbol}</Text></Text>
                     </GlassCard>
 
                     <GlassCard style={styles.infoCard}>
@@ -321,7 +323,7 @@ const SettingsScreen = () => {
                                 <Text style={styles.infoLabel}>{t('connected_to')}</Text>
                                 <Text style={styles.infoValue} numberOfLines={1}>
                                     {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' :
-                                        selectedRpc === NETWORKS.westend ? 'Westend Testnet' : 'Paseo Asset Hub'}
+                                        selectedRpc === NETWORKS.westend ? 'Westend Testnet' : 'Paseo Relay Chain'}
                                 </Text>
                             </View>
                             <View style={styles.statusBadge}>
@@ -352,7 +354,7 @@ const SettingsScreen = () => {
                                 onPress={() => handleNetworkChange(NETWORKS.paseo)}
                             >
                                 <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.paseo && styles.networkBtnTextActive]}>
-                                    ASSET HUB
+                                    PASEO RELAY
                                 </Text>
                             </TouchableOpacity>
                         </View>
