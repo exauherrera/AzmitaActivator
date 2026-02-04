@@ -50,7 +50,7 @@ const resources = {
             total_balance: 'AVAILABLE BALANCE',
             generate_new: 'GENERATE NEW',
             generate_wallet_title: 'Generate New Wallet',
-            generate_wallet_warn: 'This will replace your current key. Make sure to back up your new address.',
+            generate_wallet_warn: 'This will replace your current key. Make sure to back up your seed phrase.',
             new_wallet_created: 'New Wallet Created!',
             write_config: 'NFC CONFIG',
             date: 'DATE',
@@ -62,6 +62,12 @@ const resources = {
             select_network: 'Select Network',
             network_mainnet: 'Polkadot Mainnet',
             network_westend: 'Westend Testnet',
+            network_paseo: 'Paseo Asset Hub',
+            seed_phrase: 'Seed Phrase',
+            show_seed: 'Show Seed Phrase',
+            hide_seed: 'Hide Seed Phrase',
+            mnemonic_warn: 'This phrase allows total access to your funds. NEVER share it and keep it in a safe place (offline).',
+            copy_seed: 'Copy Phrase',
         }
     },
     es: {
@@ -111,7 +117,7 @@ const resources = {
             total_balance: 'SALDO DISPONIBLE',
             generate_new: 'GENERAR NUEVA',
             generate_wallet_title: 'Generar Nueva Wallet',
-            generate_wallet_warn: 'Esto reemplazará tu llave actual. Asegúrate de guardar tu nueva dirección.',
+            generate_wallet_warn: 'Esto reemplazará tu llave actual. Asegúrate de respaldar tu frase semilla.',
             new_wallet_created: '¡Nueva Wallet Creada!',
             write_config: 'CONFIGURACIÓN NFC',
             date: 'FECHA',
@@ -123,6 +129,12 @@ const resources = {
             select_network: 'Seleccionar Red',
             network_mainnet: 'Polkadot Mainnet',
             network_westend: 'Westend Testnet',
+            network_paseo: 'Paseo Asset Hub',
+            seed_phrase: 'Frase Semilla',
+            show_seed: 'Ver Frase Semilla',
+            hide_seed: 'Ocultar Frase',
+            mnemonic_warn: 'Esta frase permite el acceso total a tus fondos. NUNCA la compartas y guárdala en un lugar seguro (offline).',
+            copy_seed: 'Copiar Frase',
         }
     }
 };

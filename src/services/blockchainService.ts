@@ -4,7 +4,8 @@ import { mnemonicGenerate, cryptoWaitReady } from '@polkadot/util-crypto';
 
 export const NETWORKS = {
     polkadot: 'wss://rpc.polkadot.io',
-    westend: 'wss://westend-rpc.dwellir.com'
+    westend: 'wss://westend-rpc.dwellir.com',
+    paseo: 'wss://sys.ibp.network/asset-hub-paseo'
 };
 
 const TREASURY_ADDRESS = '14dUZFW2EYTriLEN4Y8mmTjkC5nBk1jMqMhjNBiG2Y1KoSKN';

@@ -26,7 +26,8 @@ import Animated, {
     withTiming,
     withRepeat,
     Easing,
-    cancelAnimation
+    cancelAnimation,
+    FadeIn
 } from 'react-native-reanimated';
 import blockchainService, { NETWORKS } from '../services/blockchainService';
 
@@ -38,6 +39,8 @@ const SettingsScreen = () => {
     const [tempAddress, setTempAddress] = useState('');
     const [loadingBalance, setLoadingBalance] = useState(false);
     const [selectedRpc, setSelectedRpc] = useState(NETWORKS.polkadot);
+    const [showSeed, setShowSeed] = useState(false);
+    const [savedMnemonic, setSavedMnemonic] = useState('');
     const rotation = useSharedValue(0);
     const networkName = 'Polkadot (Development)';
 
@@ -67,6 +70,10 @@ const SettingsScreen = () => {
         if (savedRpc) {
             setSelectedRpc(savedRpc);
             await blockchainService.switchNetwork(savedRpc);
+        }
+
+        if (savedSeed) {
+            setSavedMnemonic(savedSeed);
         }
     };
 
@@ -149,22 +156,24 @@ const SettingsScreen = () => {
                     text: t('confirm'),
                     onPress: async () => {
                         const newWallet = await blockchainService.generateNewWallet();
-                        // Store the mnemonic for signing transactions
                         await AsyncStorage.setItem('user-wallet', newWallet.mnemonic);
-                        // Store the address for UI display
                         await AsyncStorage.setItem('user-wallet-address', newWallet.address);
-
                         setWalletAddress(newWallet.address);
-                        Alert.alert(t('success'), `${t('new_wallet_created')}\n\nAddress: ${newWallet.address}`);
+                        setSavedMnemonic(newWallet.mnemonic);
+                        setShowSeed(true);
+                        Alert.alert(
+                            t('success'),
+                            `${t('new_wallet_created')}\n\n${t('mnemonic_warn')}`
+                        );
                     }
                 }
             ]
         );
     };
 
-    const handleCopy = () => {
-        Clipboard.setString(walletAddress);
-        Alert.alert(t('success'), t('copy_address') || 'Dirección copiada');
+    const handleCopy = (text: string, label: string) => {
+        Clipboard.setString(text);
+        Alert.alert(t('success'), label);
     };
 
     return (
@@ -234,7 +243,7 @@ const SettingsScreen = () => {
                             </View>
                         ) : (
                             <>
-                                <TouchableOpacity style={styles.addressContainer} onPress={handleCopy}>
+                                <TouchableOpacity style={styles.addressContainer} onPress={() => handleCopy(walletAddress, t('copy_address') || 'Dirección copiada')}>
                                     <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
                                         {walletAddress}
                                     </Text>
@@ -252,6 +261,45 @@ const SettingsScreen = () => {
                                         <Text style={[styles.actionBtnText, { color: COLORS.azmitaRed }]}>{t('generate_new') || 'GENERAR NUEVA'}</Text>
                                     </TouchableOpacity>
                                 </View>
+
+                                {savedMnemonic ? (
+                                    <View style={styles.mnemonicSection}>
+                                        <TouchableOpacity
+                                            style={styles.showSeedBtn}
+                                            onPress={() => setShowSeed(!showSeed)}
+                                        >
+                                            <Ionicons
+                                                name={showSeed ? "eye-off-outline" : "eye-outline"}
+                                                size={18}
+                                                color={COLORS.azmitaRed}
+                                            />
+                                            <Text style={styles.showSeedText}>
+                                                {showSeed ? t('hide_seed') : t('show_seed')}
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        {showSeed && (
+                                            <Animated.View entering={FadeIn} style={styles.mnemonicContainer}>
+                                                <Text style={styles.mnemonicWarning}>{t('mnemonic_warn')}</Text>
+                                                <View style={styles.seedGrid}>
+                                                    {savedMnemonic.split(' ').map((word, index) => (
+                                                        <View key={index} style={styles.wordBadge}>
+                                                            <Text style={styles.wordIndex}>{index + 1}</Text>
+                                                            <Text style={styles.wordText}>{word}</Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                                <TouchableOpacity
+                                                    style={styles.copySeedBtn}
+                                                    onPress={() => handleCopy(savedMnemonic, t('success'))}
+                                                >
+                                                    <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
+                                                    <Text style={styles.copySeedText}>{t('copy_seed')}</Text>
+                                                </TouchableOpacity>
+                                            </Animated.View>
+                                        )}
+                                    </View>
+                                ) : null}
                             </>
                         )}
                     </GlassCard>
@@ -268,7 +316,8 @@ const SettingsScreen = () => {
                             <View style={styles.infoTextContainer}>
                                 <Text style={styles.infoLabel}>{t('connected_to')}</Text>
                                 <Text style={styles.infoValue}>
-                                    {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' : 'Westend Testnet'}
+                                    {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' :
+                                        selectedRpc === NETWORKS.westend ? 'Westend Testnet' : 'Paseo Asset Hub'}
                                 </Text>
                             </View>
                             <View style={styles.statusBadge}>
@@ -292,6 +341,14 @@ const SettingsScreen = () => {
                             >
                                 <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.westend && styles.networkBtnTextActive]}>
                                     WESTEND
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.networkBtn, selectedRpc === NETWORKS.paseo && styles.networkBtnActive]}
+                                onPress={() => handleNetworkChange(NETWORKS.paseo)}
+                            >
+                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.paseo && styles.networkBtnTextActive]}>
+                                    ASSET HUB
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -525,6 +582,82 @@ const styles = StyleSheet.create({
     },
     networkBtnTextActive: {
         color: '#FFFFFF',
+    },
+    mnemonicSection: {
+        marginTop: 15,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    showSeedBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 10,
+    },
+    showSeedText: {
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 12,
+        color: COLORS.azmitaRed,
+        letterSpacing: 1,
+    },
+    mnemonicContainer: {
+        marginTop: 10,
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+    },
+    mnemonicWarning: {
+        color: '#FFB703',
+        fontSize: 11,
+        fontFamily: 'Orbitron_400Regular',
+        marginBottom: 15,
+        textAlign: 'center',
+        lineHeight: 16,
+    },
+    seedGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        justifyContent: 'center',
+    },
+    wordBadge: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        minWidth: '28%',
+    },
+    wordIndex: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+    },
+    wordText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontFamily: 'Orbitron_400Regular',
+    },
+    copySeedBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.azmitaRed,
+        marginTop: 15,
+        paddingVertical: 10,
+        borderRadius: 8,
+        gap: 8,
+    },
+    copySeedText: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 12,
+        letterSpacing: 1,
     },
     statusBadge: {
         flexDirection: 'row',
