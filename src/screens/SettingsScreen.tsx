@@ -289,7 +289,7 @@ const SettingsScreen = () => {
                                                     {savedMnemonic.split(' ').map((word, index) => (
                                                         <View key={index} style={styles.wordBadge}>
                                                             <Text style={styles.wordIndex}>{index + 1}</Text>
-                                                            <Text style={styles.wordText}>{word}</Text>
+                                                            <Text style={styles.wordText} numberOfLines={1} ellipsizeMode="tail">{word}</Text>
                                                         </View>
                                                     ))}
                                                 </View>
@@ -319,7 +319,7 @@ const SettingsScreen = () => {
                             />
                             <View style={styles.infoTextContainer}>
                                 <Text style={styles.infoLabel}>{t('connected_to')}</Text>
-                                <Text style={styles.infoValue}>
+                                <Text style={styles.infoValue} numberOfLines={1}>
                                     {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' :
                                         selectedRpc === NETWORKS.westend ? 'Westend Testnet' : 'Paseo Asset Hub'}
                                 </Text>
@@ -475,6 +475,7 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     infoValue: {
+        flex: 1,
         fontSize: 14,
         color: '#FFFFFF',
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
@@ -657,6 +658,7 @@ const styles = StyleSheet.create({
         opacity: 0.8,
     },
     wordText: {
+        flex: 1,
         color: '#FFFFFF',
         fontSize: 14,
         fontFamily: 'Orbitron_400Regular',
