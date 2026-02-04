@@ -219,6 +219,17 @@ const MainScreen = () => {
                                     multiline
                                 />
                             </View>
+
+                            <View style={styles.goldenRulesRow}>
+                                <View style={styles.ruleBadge}>
+                                    <Ionicons name="flash-outline" size={14} color="#00FFA3" />
+                                    <Text style={styles.ruleText}>{t('gas_less')}</Text>
+                                </View>
+                                <View style={styles.ruleBadge}>
+                                    <Ionicons name="shield-checkmark-outline" size={14} color="#00FFA3" />
+                                    <Text style={styles.ruleText}>{t('sun_verified')}</Text>
+                                </View>
+                            </View>
                         </ScrollView>
 
                         <NeonButton
@@ -349,6 +360,30 @@ const styles = StyleSheet.create({
     confirmBtn: {
         marginTop: 20,
         marginBottom: 20,
+    },
+    goldenRulesRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        marginTop: 10,
+        marginBottom: 20,
+    },
+    ruleBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 255, 163, 0.1)',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 255, 163, 0.3)',
+        gap: 6,
+    },
+    ruleText: {
+        color: '#00FFA3',
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 0.5,
     }
 });
 

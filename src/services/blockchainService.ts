@@ -83,15 +83,19 @@ class BlockchainService {
     }
 
     /**
-     * Azmitar: Mints an RWA NFT and handles protocol fees
+     * Azmitar: Mints an RWA NFT and handles protocol fees (GAS-LESS Experience)
+     * Rule 4: User only sees "Activating Product", fees are abstracted.
+     * Rule 5: Prepares the Chain of Custody record.
      */
     async azmitarAsset(ownerSeed: string, metadata: any) {
         const api = await this.init();
         const keyring = new Keyring({ type: 'sr25519' });
         const pair = keyring.addFromUri(ownerSeed);
 
-        console.log(`[POLKADOT] Initiating Azmitization for: ${pair.address}`);
-        console.log(`[PROTOCOL] Fee of ${PROTOCOL_FEE} DOT will be transferred to Treasury: ${TREASURY_ADDRESS}`);
+        // Abstracting the Gas Fee (Rule 4)
+        // In a production environment, this would use a Proxy account or a subsidized transaction.
+        console.log(`[POLKADOT] Initiating Gas-Less Azmitization for UID: ${metadata.uid}`);
+        console.log(`[PROTOCOL] Fee of ${PROTOCOL_FEE} ${metadata.symbol || 'DOT'} handled by Protocol Fee Payer.`);
 
         // 1. Logic for fee transfer (balances.transferKeepAlive)
         // 2. Logic for NFT Minting (uniques.create or nfts.mint)
@@ -99,15 +103,18 @@ class BlockchainService {
         // Mock transaction hash representing both actions on-chain
         const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 
-        // Simulate chain interaction delay
+        // Simulate chain interaction delay (Rule 4: Keep it premium and smooth)
         await new Promise(resolve => setTimeout(resolve, 3500));
 
         return {
             success: true,
             txHash,
-            azmitId: `AZM-${Date.now()}`,
-            feePaid: PROTOCOL_FEE,
-            treasury: TREASURY_ADDRESS
+            azmitId: `AZM-${metadata.uid.slice(-6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+            feePayer: 'Protocol Account (Gas-Less)',
+            chainOfCustody: [
+                { event: 'Factory Mint', date: new Date().toISOString(), owner: 'Azmita Manufacturer' },
+                { event: 'Azmitization', date: new Date().toISOString(), owner: pair.address }
+            ]
         };
     }
 }

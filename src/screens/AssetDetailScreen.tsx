@@ -9,10 +9,10 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
     const { asset } = route.params;
     const { t } = useTranslation();
 
-    const timeline = [
-        { date: asset.timestamp, event: 'PHYGITAL BINDING', status: 'CONFIRMED' },
-        { date: asset.timestamp - 86400000, event: 'CHIP FACTORY AUTH', status: 'VERIFIED' },
-        { date: Date.now(), event: 'LIVE VERIFICATION', status: 'GENUINE' }
+    const timeline = asset.chainOfCustody || [
+        { date: asset.timestamp - 172800000, event: 'REGISTRO DE FÁBRICA', status: 'VERIFICADO' },
+        { date: asset.timestamp, event: 'VÍNCULO PHYGITAL (AZMITIZACIÓN)', status: 'LOCKED' },
+        { date: Date.now(), event: 'VERIFICACIÓN DE PROPIEDAD', status: 'GENUINE' }
     ];
 
     return (

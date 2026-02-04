@@ -34,6 +34,10 @@ const resources = {
             app_info: 'Application Info',
             developed_by: 'Developed by',
             wallet_address: 'Wallet Address',
+            copy_seed: 'Copy Phrase',
+            gas_less: 'Gas-Less Activation',
+            sun_verified: 'SUN Verified (Single Truth)',
+            locked_status: 'Phygital Lock Active',
             connected_to: 'Connected to',
             instruction_scan: 'Tap a tag to inspect its internal content',
             tech_types: 'TECHNOLOGIES',
@@ -67,7 +71,6 @@ const resources = {
             show_seed: 'Show Seed Phrase',
             hide_seed: 'Hide Seed Phrase',
             mnemonic_warn: 'This phrase allows total access to your funds. NEVER share it and keep it in a safe place (offline).',
-            copy_seed: 'Copy Phrase',
         }
     },
     es: {
@@ -101,6 +104,10 @@ const resources = {
             app_info: 'Información de la Aplicación',
             developed_by: 'Desarrollado por',
             wallet_address: 'Dirección de Cartera',
+            copy_seed: 'Copiar Frase',
+            gas_less: 'Activación Sin Gas',
+            sun_verified: 'Verificado vía SUN',
+            locked_status: 'Bloqueo Phygital Activo',
             connected_to: 'Conectado a',
             instruction_scan: 'Toca un tag para inspeccionar su contenido interno',
             tech_types: 'TECNOLOGÍAS',
@@ -134,7 +141,6 @@ const resources = {
             show_seed: 'Ver Frase Semilla',
             hide_seed: 'Ocultar Frase',
             mnemonic_warn: 'Esta frase permite el acceso total a tus fondos. NUNCA la compartas y guárdala en un lugar seguro (offline).',
-            copy_seed: 'Copiar Frase',
         }
     }
 };
