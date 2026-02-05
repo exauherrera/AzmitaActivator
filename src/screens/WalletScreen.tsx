@@ -20,9 +20,12 @@ import * as Clipboard from 'expo-clipboard';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
 import { NeonButton } from '../components/NeonButton';
+import { QRScannerModal } from '../components/QRScannerModal';
 import { COLORS } from '../theme/colors';
 import blockchainService, { NETWORKS } from '../services/blockchainService';
 import { useFocusEffect } from '@react-navigation/native';
+import { PinPadModal } from '../components/PinPadModal';
+import securityService from '../services/securityService';
 
 interface Transaction {
     hash: string;
@@ -44,12 +47,19 @@ const WalletScreen = () => {
     // Modals
     const [receiveVisible, setReceiveVisible] = useState(false);
     const [sendVisible, setSendVisible] = useState(false);
+    const [qrScannerVisible, setQrScannerVisible] = useState(false);
 
     // Send Form
     const [recipientAddress, setRecipientAddress] = useState('');
     const [sendAmount, setSendAmount] = useState('');
-    const [estimatedFee, setEstimatedFee] = useState('0.01');
+    const [estimatedFee, setEstimatedFee] = useState('0.00');
+    const [feeFloat, setFeeFloat] = useState(0);
+    const [isCalculatingFee, setIsCalculatingFee] = useState(false);
     const [sending, setSending] = useState(false);
+
+    // Security State
+    const [pinModalVisible, setPinModalVisible] = useState(false);
+    const [pendingAction, setPendingAction] = useState<() => Promise<void> | void>();
 
     // Transactions
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -118,77 +128,114 @@ const WalletScreen = () => {
         Alert.alert('✅', message);
     };
 
+    // Fee Estimation Effect
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (recipientAddress.length > 5 && sendAmount) {
+                setIsCalculatingFee(true);
+                try {
+                    if (walletAddress) {
+                        const feeData = await blockchainService.getTransferFee(walletAddress, recipientAddress, sendAmount);
+                        setEstimatedFee(feeData.formatted);
+                        setFeeFloat(feeData.float);
+                    }
+                } catch (e) {
+                    console.warn('Fee calc error', e);
+                } finally {
+                    setIsCalculatingFee(false);
+                }
+            } else {
+                setEstimatedFee('0.00');
+                setFeeFloat(0);
+            }
+        }, 800); // 800ms debounce
+
+        return () => clearTimeout(timer);
+    }, [recipientAddress, sendAmount, walletAddress]);
+
     const handleSendMax = () => {
-        const maxAmount = parseFloat(balance) - parseFloat(estimatedFee);
+        const maxAmount = parseFloat(balance) - feeFloat;
         if (maxAmount > 0) {
             setSendAmount(maxAmount.toFixed(4));
+        } else {
+            setSendAmount('0.00');
+        }
+    };
+
+    const executeSendTransaction = async () => {
+        setSending(true);
+        try {
+            const mnemonic = await AsyncStorage.getItem('user-wallet-mnemonic');
+            if (!mnemonic) {
+                Alert.alert(t('error'), t('seed_not_found'));
+                return;
+            }
+
+            const result = await blockchainService.sendTransfer(
+                mnemonic,
+                recipientAddress,
+                sendAmount
+            );
+
+            if (result.success) {
+                Alert.alert(
+                    '✅ ' + t('transaction_sent'),
+                    `Hash: ${result.txHash.substring(0, 10)}...`,
+                    [
+                        {
+                            text: t('view_on_subscan'),
+                            onPress: () => openSubscan(result.txHash),
+                        },
+                        { text: t('ok') },
+                    ]
+                );
+                setSendVisible(false);
+                setRecipientAddress('');
+                setSendAmount('');
+                fetchBalance(walletAddress);
+                fetchTransactions(walletAddress);
+            } else {
+                Alert.alert(t('error'), result.error || t('transaction_failed'));
+            }
+        } catch (error: any) {
+            Alert.alert(t('error'), error.message || t('transaction_failed'));
+        } finally {
+            setSending(false);
         }
     };
 
     const handleSendTransaction = async () => {
         if (!recipientAddress || !sendAmount) {
-            Alert.alert(t('error'), 'Por favor completa todos los campos');
+            Alert.alert(t('error'), t('fill_all_fields'));
             return;
         }
 
         const amount = parseFloat(sendAmount);
-        const available = parseFloat(balance) - parseFloat(estimatedFee);
+        const totalCost = amount + feeFloat;
 
-        if (amount > available) {
-            Alert.alert(t('error'), 'Saldo insuficiente');
+        if (totalCost > parseFloat(balance)) {
+            Alert.alert(t('error'), `${t('insufficient_balance')} (Req: ${totalCost.toFixed(4)} ${tokenSymbol})`);
             return;
         }
 
-        Alert.alert(
-            t('confirm_send'),
-            `Enviar ${sendAmount} ${tokenSymbol} a:\n${recipientAddress.substring(0, 10)}...?`,
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Confirmar',
-                    onPress: async () => {
-                        setSending(true);
-                        try {
-                            const mnemonic = await AsyncStorage.getItem('user-wallet-mnemonic');
-                            if (!mnemonic) {
-                                Alert.alert(t('error'), 'No se encontró la frase semilla');
-                                return;
-                            }
+        const actionToExecute = async () => {
+            Alert.alert(
+                t('confirm_send'),
+                t('confirm_send_body', { amount: sendAmount, symbol: tokenSymbol, address: recipientAddress.substring(0, 10) }),
+                [
+                    { text: t('cancel'), style: 'cancel' },
+                    { text: t('confirm'), onPress: executeSendTransaction }
+                ]
+            );
+        };
 
-                            const result = await blockchainService.sendTransfer(
-                                mnemonic,
-                                recipientAddress,
-                                sendAmount
-                            );
-
-                            if (result.success) {
-                                Alert.alert(
-                                    '✅ ' + t('transaction_sent'),
-                                    `Hash: ${result.txHash.substring(0, 10)}...`,
-                                    [
-                                        {
-                                            text: t('view_on_subscan'),
-                                            onPress: () => openSubscan(result.txHash),
-                                        },
-                                        { text: 'OK' },
-                                    ]
-                                );
-                                setSendVisible(false);
-                                setRecipientAddress('');
-                                setSendAmount('');
-                                fetchBalance(walletAddress);
-                            } else {
-                                Alert.alert(t('error'), t('transaction_failed'));
-                            }
-                        } catch (error: any) {
-                            Alert.alert(t('error'), error.message || t('transaction_failed'));
-                        } finally {
-                            setSending(false);
-                        }
-                    },
-                },
-            ]
-        );
+        const shouldAskPin = await securityService.shouldAskPin('send_funds');
+        if (shouldAskPin) {
+            setPendingAction(() => actionToExecute);
+            setPinModalVisible(true);
+        } else {
+            await actionToExecute();
+        }
     };
 
     const openSubscan = (txHash: string) => {
@@ -381,14 +428,34 @@ const WalletScreen = () => {
 
                             <ScrollView showsVerticalScrollIndicator={false}>
                                 <GlassCard style={styles.recipientCard}>
-                                    <Text style={styles.inputLabel}>{t('recipient_address')}</Text>
+                                    <View style={styles.inputHeader}>
+                                        <Text style={styles.inputLabel}>{t('recipient_address')}</Text>
+                                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                                            <TouchableOpacity onPress={async () => {
+                                                const content = await Clipboard.getStringAsync();
+                                                if (content) {
+                                                    setRecipientAddress(content);
+                                                }
+                                            }} style={[styles.qrButtonSmall, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                                                <Ionicons name="clipboard-outline" size={16} color={COLORS.textSecondary} />
+                                                <Text style={[styles.qrButtonTextSmall, { color: COLORS.textSecondary }]}>PASTE</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => setQrScannerVisible(true)} style={styles.qrButtonSmall}>
+                                                <Ionicons name="qr-code-outline" size={16} color={COLORS.azmitaRed} />
+                                                <Text style={styles.qrButtonTextSmall}>SCAN QR</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
                                     <TextInput
                                         style={styles.input}
                                         value={recipientAddress}
                                         onChangeText={setRecipientAddress}
-                                        placeholder="5... (Substrate Address)"
+                                        placeholder={t('enter_address')}
                                         placeholderTextColor="rgba(255,255,255,0.3)"
                                         autoCapitalize="none"
+                                        multiline={true}
+                                        numberOfLines={2}
+                                        textAlignVertical="top"
                                     />
                                 </GlassCard>
 
@@ -421,28 +488,66 @@ const WalletScreen = () => {
                                             <Text style={[styles.currencyBadgeText, { fontSize: 8 }]}>{tokenSymbol}</Text>
                                         </View>
                                     </View>
-                                    <Text style={styles.feeValue} adjustsFontSizeToFit numberOfLines={1}>
-                                        {balance}
-                                    </Text>
+                                    <View>
+                                        <Text style={styles.feeValue} adjustsFontSizeToFit numberOfLines={1}>
+                                            {balance}
+                                        </Text>
+                                    </View>
                                 </View>
 
                                 <View style={styles.feeRow}>
-                                    <Text style={styles.feeLabel}>{t('estimated_fee')}:</Text>
+                                    <Text style={styles.feeLabel}>{t('estimated_fee') || 'Comisión Estimada'}:</Text>
                                     <Text style={styles.feeValue}>
-                                        ~{estimatedFee} {tokenSymbol}
+                                        {isCalculatingFee ? '...' : `~${estimatedFee} ${tokenSymbol}`}
                                     </Text>
                                 </View>
+
+                                {sendAmount ? (
+                                    <View style={[styles.feeRow, { borderBottomWidth: 0, marginTop: 5 }]}>
+                                        <Text style={[styles.feeLabel, { fontWeight: 'bold', color: COLORS.azmitaRed }]}>TOTAL:</Text>
+                                        <Text style={[styles.feeValue, { fontSize: 16, color: COLORS.azmitaRed }]}>
+                                            {(parseFloat(sendAmount || '0') + feeFloat).toFixed(4)} {tokenSymbol}
+                                        </Text>
+                                    </View>
+                                ) : null}
 
                                 <NeonButton
                                     title={sending ? 'Enviando...' : t('confirm_send')}
                                     onPress={handleSendTransaction}
                                     style={styles.sendBtn}
+                                    titleStyle={{ fontSize: 14 }}
                                     disabled={sending}
                                 />
                             </ScrollView>
                         </View>
                     </View>
                 </Modal>
+
+                <QRScannerModal
+                    visible={qrScannerVisible}
+                    onClose={() => setQrScannerVisible(false)}
+                    onScan={(data) => {
+                        setRecipientAddress(data);
+                        setQrScannerVisible(false);
+                    }}
+                />
+
+                <PinPadModal
+                    visible={pinModalVisible}
+                    mode="verify"
+                    onSuccess={(pin) => {
+                        // securityService handles verification if mode='verify'?? 
+                        // Wait, in PinPadModal I implemented internal verification logic for 'verify'.
+                        // So onSuccess is only called if valid.
+                        setPinModalVisible(false);
+                        if (pendingAction) pendingAction();
+                        setPendingAction(undefined);
+                    }}
+                    onClose={() => {
+                        setPinModalVisible(false);
+                        setPendingAction(undefined);
+                    }}
+                />
             </View>
         </ScreenWrapper>
     );
@@ -792,6 +897,26 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 10,
+    },
+    inputHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    qrButtonSmall: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        gap: 4,
+    },
+    qrButtonTextSmall: {
+        color: COLORS.azmitaRed,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
     },
     maxBtnSmall: {
         backgroundColor: COLORS.azmitaRed,

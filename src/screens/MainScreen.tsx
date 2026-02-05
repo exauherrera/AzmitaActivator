@@ -33,8 +33,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { RadarScanner } from '../components/RadarScanner';
+import { PinPadModal } from '../components/PinPadModal';
+import securityService from '../services/securityService';
 
-const { width } = Dimensions.get('window');
+// ...
 
 const MainScreen = () => {
     const { t, i18n } = useTranslation();
@@ -47,6 +49,10 @@ const MainScreen = () => {
     const [currentTime, setCurrentTime] = useState({ date: '', time: '' });
     const [selectedRpc, setSelectedRpc] = useState(NETWORKS.mainnet.rpc);
     const [tokenSymbol, setTokenSymbol] = useState('AZM');
+
+    // Security
+    const [pinModalVisible, setPinModalVisible] = useState(false);
+    const [pendingAction, setPendingAction] = useState<() => Promise<void> | void>();
 
     // Logo Animation
     const logoScale = useSharedValue(1);
@@ -83,12 +89,16 @@ const MainScreen = () => {
         transform: [{ scale: logoScale.value }],
     }));
 
+    const handleCancelScan = () => {
+        nfcService.abort();
+        setLoading(false);
+        setStatus('');
+    };
+
     useFocusEffect(
         React.useCallback(() => {
             return () => {
-                nfcService.abort();
-                setLoading(false);
-                setStatus('');
+                handleCancelScan();
             };
         }, [])
     );
@@ -121,7 +131,7 @@ const MainScreen = () => {
         }
     };
 
-    const confirmAzmitar = async () => {
+    const executeAzmitar = async () => {
         if (!scannedTag) return;
 
         setLoading(true);
@@ -179,6 +189,16 @@ const MainScreen = () => {
         }
     };
 
+    const confirmAzmitar = async () => {
+        const shouldAskPin = await securityService.shouldAskPin('azmit_asset');
+        if (shouldAskPin) {
+            setPendingAction(() => executeAzmitar);
+            setPinModalVisible(true);
+        } else {
+            await executeAzmitar();
+        }
+    };
+
     return (
         <ScreenWrapper>
             <ScrollView
@@ -203,49 +223,59 @@ const MainScreen = () => {
                         statusText={loading ? status : t('ready_to_scan')}
                         icon={<Text style={styles.scannerIcon}>◈</Text>}
                     />
+                    {loading && (
+                        <TouchableOpacity
+                            style={styles.cancelScanBtn}
+                            onPress={handleCancelScan}
+                        >
+                            <Ionicons name="close-circle-outline" size={20} color={COLORS.textSecondary} />
+                            <Text style={styles.cancelScanText}>{t('cancel') || 'CANCELAR'}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
-                {/* Modal de Configuración de Escritura */}
+                {/* Modal de Configuración de Escritura / Preview */}
                 <Modal
                     visible={configModalVisible}
-                    animationType="slide"
+                    animationType="fade"
                     transparent={true}
                     onRequestClose={() => setConfigModalVisible(false)}
                 >
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>{t('write_config') || 'NFC CONFIG'}</Text>
+                                <View>
+                                    <Text style={styles.modalTitle}>{t('digital_twin_preview') || 'DIGITAL TWIN PREVIEW'}</Text>
+                                    <Text style={styles.modalSubTitle}>{t('verify_data_before_locking') || 'Verifica los datos antes del bloqueo'}</Text>
+                                </View>
                                 <TouchableOpacity onPress={() => setConfigModalVisible(false)}>
                                     <Ionicons name="close" size={24} color={COLORS.textSecondary} />
                                 </TouchableOpacity>
                             </View>
 
-                            <ScrollView style={styles.modalBody}>
-                                <View style={styles.configItem}>
-                                    <Text style={styles.configLabel}>UID (TAG ID)</Text>
-                                    <View style={styles.readonlyField}>
-                                        <Text style={styles.readonlyText}>{scannedTag?.id}</Text>
+                            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                                <GlassCard style={styles.previewCard}>
+                                    <View style={styles.configItem}>
+                                        <Text style={styles.configLabel}>IDENTIFICADOR ÚNICO (UID)</Text>
+                                        <Text style={styles.previewValue}>{scannedTag?.id}</Text>
                                     </View>
-                                </View>
 
-                                <View style={styles.configRow}>
-                                    <View style={[styles.configItem, { flex: 1, marginRight: 10 }]}>
-                                        <Text style={styles.configLabel}>{t('date') || 'FECHA'}</Text>
-                                        <View style={styles.readonlyField}>
-                                            <Text style={styles.readonlyText}>{currentTime.date}</Text>
+                                    <View style={styles.separator} />
+
+                                    <View style={styles.configRow}>
+                                        <View style={[styles.configItem, { flex: 1 }]}>
+                                            <Text style={styles.configLabel}>{t('date') || 'FECHA'}</Text>
+                                            <Text style={styles.previewValueSmall}>{currentTime.date}</Text>
+                                        </View>
+                                        <View style={[styles.configItem, { flex: 1 }]}>
+                                            <Text style={styles.configLabel}>{t('time') || 'HORA'}</Text>
+                                            <Text style={styles.previewValueSmall}>{currentTime.time}</Text>
                                         </View>
                                     </View>
-                                    <View style={[styles.configItem, { flex: 1 }]}>
-                                        <Text style={styles.configLabel}>{t('time') || 'HORA'}</Text>
-                                        <View style={styles.readonlyField}>
-                                            <Text style={styles.readonlyText}>{currentTime.time}</Text>
-                                        </View>
-                                    </View>
-                                </View>
+                                </GlassCard>
 
-                                <View style={styles.configItem}>
-                                    <Text style={styles.configLabel}>{t('custom_text') || 'TEXTO PERSONALIZADO'}</Text>
+                                <View style={styles.inputSection}>
+                                    <Text style={styles.configLabel}>{t('custom_metadata') || 'METADATA ADICIONAL'}</Text>
                                     <TextInput
                                         style={styles.textInput}
                                         placeholder={t('placeholder_metadata') || 'Escribe aquí información adicional...'}
@@ -258,20 +288,25 @@ const MainScreen = () => {
 
                                 <View style={styles.goldenRulesRow}>
                                     <View style={styles.ruleBadge}>
-                                        <Ionicons name="flash-outline" size={14} color="#00FFA3" />
+                                        <Ionicons name="flash-outline" size={12} color="#00FFA3" />
                                         <Text style={styles.ruleText}>{t('gas_less')}</Text>
                                     </View>
                                     <View style={styles.ruleBadge}>
-                                        <Ionicons name="shield-checkmark-outline" size={14} color="#00FFA3" />
+                                        <Ionicons name="shield-checkmark-outline" size={12} color="#00FFA3" />
                                         <Text style={styles.ruleText}>{t('sun_verified')}</Text>
+                                    </View>
+                                    <View style={styles.ruleBadge}>
+                                        <Ionicons name="lock-closed-outline" size={12} color="#00FFA3" />
+                                        <Text style={styles.ruleText}>{t('phygital_lock') || 'LOCKED'}</Text>
                                     </View>
                                 </View>
                             </ScrollView>
 
                             <NeonButton
-                                title={t('confirm_write') || 'AZMITAR AHORA'}
+                                title={t('confirm_write') || 'AZMITAR'}
                                 onPress={confirmAzmitar}
                                 style={styles.confirmBtn}
+                                titleStyle={{ fontSize: 14 }}
                             />
                         </View>
                     </View>
@@ -286,6 +321,20 @@ const MainScreen = () => {
                     />
                 </View>
             </ScrollView>
+
+            <PinPadModal
+                visible={pinModalVisible}
+                mode="verify"
+                onSuccess={() => {
+                    setPinModalVisible(false);
+                    if (pendingAction) pendingAction();
+                    setPendingAction(undefined);
+                }}
+                onClose={() => {
+                    setPinModalVisible(false);
+                    setPendingAction(undefined);
+                }}
+            />
         </ScreenWrapper>
     );
 };
@@ -335,16 +384,21 @@ const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.85)',
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
+        padding: 20,
     },
     modalContent: {
         backgroundColor: COLORS.cardBlack,
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
+        borderRadius: 30,
         padding: 25,
-        height: '80%',
-        borderTopWidth: 1,
-        borderTopColor: COLORS.azmitaRed,
+        maxHeight: '85%',
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        shadowColor: COLORS.azmitaRed,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -358,14 +412,24 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         letterSpacing: 2,
     },
+    modalSubTitle: {
+        fontSize: 10,
+        fontFamily: 'Inter_400Regular',
+        color: COLORS.textSecondary,
+        marginTop: 4,
+        letterSpacing: 1,
+    },
     modalBody: {
         flex: 1,
     },
+    previewCard: {
+        padding: 20,
+        marginBottom: 20,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 20,
+    },
     configItem: {
         marginBottom: 20,
-    },
-    configRow: {
-        flexDirection: 'row',
     },
     configLabel: {
         fontSize: 10,
@@ -374,17 +438,27 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         marginBottom: 8,
     },
-    readonlyField: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        padding: 15,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+    previewValue: {
+        color: '#FFFFFF',
+        fontFamily: 'monospace',
+        fontSize: 16,
+        letterSpacing: 1,
     },
-    readonlyText: {
-        color: COLORS.textSecondary,
+    previewValueSmall: {
+        color: '#FFFFFF',
         fontFamily: 'monospace',
         fontSize: 14,
+    },
+    separator: {
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        marginVertical: 15,
+    },
+    configRow: {
+        flexDirection: 'row',
+    },
+    inputSection: {
+        marginBottom: 20,
     },
     textInput: {
         backgroundColor: 'rgba(0,0,0,0.3)',
@@ -398,15 +472,29 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(230, 57, 70, 0.2)',
     },
-    confirmBtn: {
+    cancelScanBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         marginTop: 20,
-        marginBottom: 20,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    cancelScanText: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 2,
     },
     goldenRulesRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 10,
-        marginTop: 10,
+        gap: 8,
+        marginTop: 5,
         marginBottom: 20,
     },
     ruleBadge: {
@@ -425,6 +513,10 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: 'Orbitron_700Bold',
         letterSpacing: 0.5,
+    },
+    confirmBtn: {
+        marginTop: 20,
+        marginBottom: 20,
     },
     networkBadge: {
         flexDirection: 'row',

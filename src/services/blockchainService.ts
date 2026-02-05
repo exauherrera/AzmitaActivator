@@ -1,3 +1,7 @@
+import { ApiPromise, WsProvider } from '@polkadot/api';
+import { Keyring } from '@polkadot/keyring';
+import { formatBalance } from '@polkadot/util';
+import '@polkadot/api-augment'; // Important for TS augmentation
 
 /**
  * Generic Blockchain Service (Agnostic Structure)
@@ -88,15 +92,38 @@ const SUBSCAN_CONFIG = {
 
 class BlockchainService {
     private currentRpc: string = NETWORKS.mainnet.rpc;
+    private api: ApiPromise | null = null;
+    private provider: WsProvider | null = null;
 
     async init() {
         console.log(`[BLOCKCHAIN] Initializing connection to ${this.currentRpc}`);
-        return true;
+        try {
+            await this.connect(this.currentRpc);
+            return true;
+        } catch (e) {
+            console.error('[BLOCKCHAIN] Init failed', e);
+            return false;
+        }
+    }
+
+    private async connect(rpcUrl: string) {
+        if (this.api && this.currentRpc === rpcUrl && this.api.isConnected) return;
+
+        if (this.api) {
+            await this.api.disconnect();
+        }
+
+        this.currentRpc = rpcUrl;
+        this.provider = new WsProvider(rpcUrl);
+        this.api = await ApiPromise.create({ provider: this.provider });
+        console.log(`[BLOCKCHAIN] Connected to ${rpcUrl}`);
     }
 
     async switchNetwork(rpcUrl: string) {
         console.log(`[BLOCKCHAIN] Switching network to: ${rpcUrl}`);
-        this.currentRpc = rpcUrl;
+        if (this.currentRpc !== rpcUrl) {
+            await this.connect(rpcUrl);
+        }
     }
 
     getNetworkConfig() {
@@ -118,12 +145,13 @@ class BlockchainService {
     }
 
     async generateNewWallet() {
-        const entropy = Array.from({ length: 12 }, () => Math.random().toString(36).substring(7)).join(' ');
-        const mockAddress = 'AZM' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        const keyring = new Keyring({ type: 'sr25519' });
+        const mnemonic = await import('@polkadot/util-crypto').then(u => u.mnemonicGenerate(12));
+        const pair = keyring.addFromUri(mnemonic);
 
         return {
-            mnemonic: entropy,
-            address: mockAddress
+            mnemonic,
+            address: pair.address
         };
     }
 
@@ -200,22 +228,75 @@ class BlockchainService {
         };
     }
 
-    async sendTransfer(senderMnemonic: string, toAddress: string, amount: string): Promise<{ success: boolean; txHash: string }> {
+    async getTransferFee(senderAddress: string, recipientAddress: string, amount: string): Promise<{ formatted: string; raw: string; float: number }> {
+        if (!this.api || !this.api.isConnected) await this.connect(this.currentRpc);
+
+        try {
+            const transfer = this.api!.tx.balances.transferKeepAlive(recipientAddress, amount);
+            // We usually need the sender to estimate fee correctly (nonce etc), but we can try with a dummy
+            const info = await transfer.paymentInfo(senderAddress);
+
+            const chainDecimals = this.api!.registry.chainDecimals[0] || 12;
+            const feeBN = info.partialFee;
+            const feeFloat = parseInt(feeBN.toString()) / Math.pow(10, chainDecimals);
+
+            console.log(`[BLOCKCHAIN] Estimated Fee: ${feeFloat} (raw: ${feeBN.toString()})`);
+            return {
+                formatted: `${feeFloat.toFixed(4)}`, // Show 4 decimals
+                raw: feeBN.toString(),
+                float: feeFloat
+            };
+        } catch (e) {
+            console.warn('[BLOCKCHAIN] Fee estimation failed:', e);
+            return { formatted: 'Unknown', raw: '0', float: 0 };
+        }
+    }
+
+    async sendTransfer(senderMnemonic: string, toAddress: string, amount: string): Promise<{ success: boolean; txHash: string; error?: string }> {
         try {
             console.log(`[BLOCKCHAIN] Transferring ${amount} to ${toAddress}`);
-            const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+            if (!this.api || !this.api.isConnected) await this.connect(this.currentRpc);
 
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const keyring = new Keyring({ type: 'sr25519' });
+            const sender = keyring.addFromUri(senderMnemonic);
 
-            return {
-                success: true,
-                txHash: txHash
-            };
+            // Substrate expects amount in Planck (lowest unit). 
+            // Assuming the input 'amount' is already handled or we need to handle decimals.
+            // Ideally use `formatBalance` settings from chain properties.
+            const chainDecimals = this.api!.registry.chainDecimals[0] || 12;
+            const amountBN = (BigInt(parseFloat(amount) * Math.pow(10, chainDecimals))).toString();
+
+            return new Promise(async (resolve) => {
+                try {
+                    const unsub = await this.api!.tx.balances
+                        .transferKeepAlive(toAddress, amountBN)
+                        .signAndSend(sender, (result: any) => {
+                            if (result.status.isInBlock) {
+                                console.log(`[BLOCKCHAIN] Transaction included at blockHash ${result.status.asInBlock}`);
+                            } else if (result.status.isFinalized) {
+                                console.log(`[BLOCKCHAIN] Transaction finalized at blockHash ${result.status.asFinalized}`);
+                                unsub();
+                                resolve({
+                                    success: true,
+                                    txHash: result.txHash.toHex()
+                                });
+                            } else if (result.isError) {
+                                console.error('[BLOCKCHAIN] Transaction error');
+                                resolve({ success: false, txHash: '', error: 'Transaction failed' });
+                            }
+                        });
+                } catch (err: any) {
+                    console.error('[BLOCKCHAIN] Send error:', err);
+                    resolve({ success: false, txHash: '', error: err.message });
+                }
+            });
+
         } catch (error: any) {
             console.error('Error sending transfer:', error);
             return {
                 success: false,
                 txHash: '',
+                error: error.message
             };
         }
     }

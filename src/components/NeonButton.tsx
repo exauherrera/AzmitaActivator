@@ -8,10 +8,11 @@ interface NeonButtonProps {
     title: string;
     subtitle?: string;
     style?: ViewStyle;
+    titleStyle?: TextStyle;
     disabled?: boolean;
 }
 
-export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style, disabled }) => {
+export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style, titleStyle, disabled }) => {
     return (
         <TouchableOpacity
             onPress={onPress}
@@ -25,7 +26,14 @@ export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle
                 end={{ x: 1, y: 1 }}
                 style={styles.gradient}
             >
-                <Text style={[styles.title, disabled && styles.disabledText]}>{title}</Text>
+                <Text
+                    style={[styles.title, titleStyle, disabled && styles.disabledText]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                >
+                    {title}
+                </Text>
                 {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
             </LinearGradient>
         </TouchableOpacity>
