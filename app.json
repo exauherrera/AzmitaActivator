@@ -25,7 +25,11 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.NFC"
-      ]
+      ],
+      "navigationBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "transparent"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

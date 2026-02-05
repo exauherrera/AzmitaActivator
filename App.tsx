@@ -13,19 +13,22 @@ import { Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 
 import MainScreen from './src/screens/MainScreen';
 import VaultScreen from './src/screens/VaultScreen';
+import WalletScreen from './src/screens/WalletScreen';
 import AssetDetailScreen from './src/screens/AssetDetailScreen';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import NfcInspectorScreen from './src/screens/NfcInspectorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -34,8 +37,8 @@ const TabNavigator = () => {
           backgroundColor: COLORS.cardBlack,
           borderTopColor: COLORS.glassBorder,
           borderTopWidth: 1,
-          height: Platform.OS === 'android' ? 75 : 85, // Adjust for premium look
-          paddingBottom: Platform.OS === 'android' ? 15 : 30, // Default padding, safe area will add more if needed
+          height: Platform.OS === 'android' ? 70 + insets.bottom : 85,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 10 : 30),
         },
         tabBarActiveTintColor: COLORS.azmitaRed,
         tabBarInactiveTintColor: COLORS.textSecondary,
@@ -48,6 +51,7 @@ const TabNavigator = () => {
           let iconName: any;
           if (route.name === 'Home') iconName = 'scan-outline';
           else if (route.name === 'Vault') iconName = 'wallet-outline';
+          else if (route.name === 'Wallet') iconName = 'card-outline';
           else if (route.name === 'Inspector') iconName = 'search-outline';
           else if (route.name === 'Settings') iconName = 'settings-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -56,6 +60,7 @@ const TabNavigator = () => {
     >
       <Tab.Screen name="Home" component={MainScreen} options={{ tabBarLabel: t('azmitar') }} />
       <Tab.Screen name="Vault" component={VaultScreen} options={{ tabBarLabel: t('vault') }} />
+      <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: t('wallet') }} />
       <Tab.Screen name="Inspector" component={NfcInspectorScreen} options={{ tabBarLabel: t('inspector') }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('settings') }} />
     </Tab.Navigator>

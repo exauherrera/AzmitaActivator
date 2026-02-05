@@ -27,7 +27,7 @@ import { GlassCard } from '../components/GlassCard';
 import { NeonButton } from '../components/NeonButton';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import nfcService from '../services/nfcService';
-import blockchainService from '../services/blockchainService';
+import blockchainService, { NETWORKS } from '../services/blockchainService';
 import translationService from '../services/translationService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -45,6 +45,8 @@ const MainScreen = () => {
     const [scannedTag, setScannedTag] = useState<any>(null);
     const [customText, setCustomText] = useState('');
     const [currentTime, setCurrentTime] = useState({ date: '', time: '' });
+    const [selectedRpc, setSelectedRpc] = useState(NETWORKS.mainnet.rpc);
+    const [tokenSymbol, setTokenSymbol] = useState('AZM');
 
     // Logo Animation
     const logoScale = useSharedValue(1);
@@ -54,7 +56,28 @@ const MainScreen = () => {
             withSequence(withTiming(1.05, { duration: 1000 }), withTiming(1, { duration: 1000 })),
             -1
         );
+        loadNetworkSettings();
     }, []);
+
+    const loadNetworkSettings = async () => {
+        try {
+            const savedRpc = await AsyncStorage.getItem('user-selected-network');
+            if (savedRpc) {
+                setSelectedRpc(savedRpc);
+                updateTokenSymbol(savedRpc);
+            }
+        } catch (error) {
+            console.error('Error loading network settings:', error);
+        }
+    };
+
+    const updateTokenSymbol = (rpc: string) => {
+        setTokenSymbol(blockchainService.getNetworkConfig().symbol);
+    };
+
+    const getNetworkName = () => {
+        return blockchainService.getNetworkConfig().name;
+    };
 
     const logoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: logoScale.value }],
@@ -103,22 +126,27 @@ const MainScreen = () => {
 
         setLoading(true);
         setConfigModalVisible(false);
-        setStatus(t('processing_blockchain'));
+
+        // Rule 2 & 1: Phygital Locking & SUN Verification
+        setStatus(t('authenticating'));
 
         try {
-            const savedWallet = await AsyncStorage.getItem('user-wallet');
-            const walletToUse = savedWallet || '//Alice';
+            const savedWallet = await AsyncStorage.getItem('user-wallet-address');
+            const savedSeed = await AsyncStorage.getItem('user-wallet-mnemonic');
+            const walletToUse = savedSeed || '//Alice';
 
-            // 1. Write metadata to chip
-            await nfcService.writeSUNMetadata(scannedTag.id, walletToUse, customText);
+            // 1. Phygital Locking (Rule 1)
+            setStatus(t('locked_status')); // "Bloqueo Phygital Activo"
+            await nfcService.writeSUNMetadata(scannedTag.id, savedWallet || 'Azmita_Protocol', customText);
 
-            // 2. Perform blockchain transaction
+            // 2. Blockchain Transaction (Rule 4 & 5)
+            setStatus(t('processing_blockchain'));
             const translatedCategory = await translationService.translate('Luxury Item', i18n.language);
             const result = await blockchainService.azmitarAsset(walletToUse, {
                 uid: scannedTag.id,
                 category: translatedCategory,
                 timestamp: Date.now(),
-                metadata: customText // Guardamos también el texto el la cadena
+                metadata: customText
             });
 
             if (result.success) {
@@ -129,7 +157,8 @@ const MainScreen = () => {
                     translatedCategory,
                     customText,
                     timestamp: Date.now(),
-                    txHash: result.txHash
+                    txHash: result.txHash,
+                    chainOfCustody: result.chainOfCustody
                 };
 
                 const existingVault = await AsyncStorage.getItem('azmit-vault');
@@ -137,11 +166,7 @@ const MainScreen = () => {
                 vault.unshift(newAzmit);
                 await AsyncStorage.setItem('azmit-vault', JSON.stringify(vault));
 
-                const successMsg = i18n.language === 'es'
-                    ? `¡Azmit Creado!\nID: ${result.azmitId}`
-                    : `Azmit Created!\nID: ${result.azmitId}`;
-
-                Alert.alert(t('success'), successMsg);
+                Alert.alert(t('success'), `${t('azmitado')}!\nID: ${result.azmitId}`);
                 setScannedTag(null);
                 setCustomText('');
             }
@@ -156,99 +181,111 @@ const MainScreen = () => {
 
     return (
         <ScreenWrapper>
-            <View style={styles.header}>
-                <Animated.Text style={[styles.logo, logoStyle]}>AZMITA</Animated.Text>
-                <Text style={styles.tagline}>THE PHYSICAL-DIGITAL LINK</Text>
-            </View>
-
-            <View style={styles.mainAction}>
-                <RadarScanner
-                    loading={loading}
-                    statusText={loading ? status : t('ready_to_scan')}
-                    icon={<Text style={styles.scannerIcon}>◈</Text>}
-                />
-            </View>
-
-            {/* Modal de Configuración de Escritura */}
-            <Modal
-                visible={configModalVisible}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={() => setConfigModalVisible(false)}
+            <ScrollView
+                contentContainerStyle={{ flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('write_config') || 'NFC CONFIG'}</Text>
-                            <TouchableOpacity onPress={() => setConfigModalVisible(false)}>
-                                <Ionicons name="close" size={24} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView style={styles.modalBody}>
-                            <View style={styles.configItem}>
-                                <Text style={styles.configLabel}>UID (TAG ID)</Text>
-                                <View style={styles.readonlyField}>
-                                    <Text style={styles.readonlyText}>{scannedTag?.id}</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.configRow}>
-                                <View style={[styles.configItem, { flex: 1, marginRight: 10 }]}>
-                                    <Text style={styles.configLabel}>{t('date') || 'FECHA'}</Text>
-                                    <View style={styles.readonlyField}>
-                                        <Text style={styles.readonlyText}>{currentTime.date}</Text>
-                                    </View>
-                                </View>
-                                <View style={[styles.configItem, { flex: 1 }]}>
-                                    <Text style={styles.configLabel}>{t('time') || 'HORA'}</Text>
-                                    <View style={styles.readonlyField}>
-                                        <Text style={styles.readonlyText}>{currentTime.time}</Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            <View style={styles.configItem}>
-                                <Text style={styles.configLabel}>{t('custom_text') || 'TEXTO PERSONALIZADO'}</Text>
-                                <TextInput
-                                    style={styles.textInput}
-                                    placeholder={t('placeholder_metadata') || 'Escribe aquí información adicional...'}
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                    value={customText}
-                                    onChangeText={setCustomText}
-                                    multiline
-                                />
-                            </View>
-
-                            <View style={styles.goldenRulesRow}>
-                                <View style={styles.ruleBadge}>
-                                    <Ionicons name="flash-outline" size={14} color="#00FFA3" />
-                                    <Text style={styles.ruleText}>{t('gas_less')}</Text>
-                                </View>
-                                <View style={styles.ruleBadge}>
-                                    <Ionicons name="shield-checkmark-outline" size={14} color="#00FFA3" />
-                                    <Text style={styles.ruleText}>{t('sun_verified')}</Text>
-                                </View>
-                            </View>
-                        </ScrollView>
-
-                        <NeonButton
-                            title={t('confirm_write') || 'AZMITAR AHORA'}
-                            onPress={confirmAzmitar}
-                            style={styles.confirmBtn}
-                        />
+                <View style={styles.header}>
+                    <View>
+                        <Animated.Text style={[styles.logo, logoStyle]}>AZMITA</Animated.Text>
+                        <Text style={styles.tagline}>THE PHYSICAL-DIGITAL LINK</Text>
+                    </View>
+                    <View style={styles.networkBadge}>
+                        <View style={styles.networkDot} />
+                        <Text style={styles.networkText}>{getNetworkName()}</Text>
                     </View>
                 </View>
-            </Modal>
 
-            <View style={styles.footer}>
-                <NeonButton
-                    title={t('azmitar')}
-                    subtitle={t('scan_chip')}
-                    onPress={handleAzmitar}
-                    style={styles.primaryButton}
-                />
-            </View>
+                <View style={styles.mainAction}>
+                    <RadarScanner
+                        loading={loading}
+                        statusText={loading ? status : t('ready_to_scan')}
+                        icon={<Text style={styles.scannerIcon}>◈</Text>}
+                    />
+                </View>
+
+                {/* Modal de Configuración de Escritura */}
+                <Modal
+                    visible={configModalVisible}
+                    animationType="slide"
+                    transparent={true}
+                    onRequestClose={() => setConfigModalVisible(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>{t('write_config') || 'NFC CONFIG'}</Text>
+                                <TouchableOpacity onPress={() => setConfigModalVisible(false)}>
+                                    <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView style={styles.modalBody}>
+                                <View style={styles.configItem}>
+                                    <Text style={styles.configLabel}>UID (TAG ID)</Text>
+                                    <View style={styles.readonlyField}>
+                                        <Text style={styles.readonlyText}>{scannedTag?.id}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.configRow}>
+                                    <View style={[styles.configItem, { flex: 1, marginRight: 10 }]}>
+                                        <Text style={styles.configLabel}>{t('date') || 'FECHA'}</Text>
+                                        <View style={styles.readonlyField}>
+                                            <Text style={styles.readonlyText}>{currentTime.date}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={[styles.configItem, { flex: 1 }]}>
+                                        <Text style={styles.configLabel}>{t('time') || 'HORA'}</Text>
+                                        <View style={styles.readonlyField}>
+                                            <Text style={styles.readonlyText}>{currentTime.time}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                <View style={styles.configItem}>
+                                    <Text style={styles.configLabel}>{t('custom_text') || 'TEXTO PERSONALIZADO'}</Text>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        placeholder={t('placeholder_metadata') || 'Escribe aquí información adicional...'}
+                                        placeholderTextColor="rgba(255,255,255,0.3)"
+                                        value={customText}
+                                        onChangeText={setCustomText}
+                                        multiline
+                                    />
+                                </View>
+
+                                <View style={styles.goldenRulesRow}>
+                                    <View style={styles.ruleBadge}>
+                                        <Ionicons name="flash-outline" size={14} color="#00FFA3" />
+                                        <Text style={styles.ruleText}>{t('gas_less')}</Text>
+                                    </View>
+                                    <View style={styles.ruleBadge}>
+                                        <Ionicons name="shield-checkmark-outline" size={14} color="#00FFA3" />
+                                        <Text style={styles.ruleText}>{t('sun_verified')}</Text>
+                                    </View>
+                                </View>
+                            </ScrollView>
+
+                            <NeonButton
+                                title={t('confirm_write') || 'AZMITAR AHORA'}
+                                onPress={confirmAzmitar}
+                                style={styles.confirmBtn}
+                            />
+                        </View>
+                    </View>
+                </Modal>
+
+                <View style={styles.footer}>
+                    <NeonButton
+                        title={t('azmitar')}
+                        subtitle={t('scan_chip')}
+                        onPress={handleAzmitar}
+                        style={styles.primaryButton}
+                    />
+                </View>
+            </ScrollView>
         </ScreenWrapper>
     );
 };
@@ -256,7 +293,11 @@ const MainScreen = () => {
 const styles = StyleSheet.create({
     header: {
         marginTop: 60,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 20,
     },
     logo: {
         fontSize: 42,
@@ -384,7 +425,30 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: 'Orbitron_700Bold',
         letterSpacing: 0.5,
-    }
+    },
+    networkBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 255, 163, 0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 255, 163, 0.2)',
+    },
+    networkDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#00FFA3',
+        marginRight: 6,
+    },
+    networkText: {
+        color: '#00FFA3',
+        fontSize: 9,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 0.5,
+    },
 });
 
 export default MainScreen;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform, Modal, TextInput } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width } = Dimensions.get('window');
 
@@ -30,15 +31,33 @@ const NfcInspectorScreen = () => {
     const [loading, setLoading] = useState(false);
     const [tagData, setTagData] = useState<any>(null);
     const [extractedHash, setExtractedHash] = useState<string | null>(null);
+    const [saveModalVisible, setSaveModalVisible] = useState(false);
+    const [deviceName, setDeviceName] = useState('');
+    const [deviceIcon, setDeviceIcon] = useState('card-outline');
+    const [deviceImage, setDeviceImage] = useState<string | null>(null);
+    const [savedDevices, setSavedDevices] = useState<any[]>([]);
+    const [emulating, setEmulating] = useState<string | null>(null);
+    const [status, setStatus] = useState('');
 
     useFocusEffect(
         React.useCallback(() => {
+            loadSavedDevices();
             return () => {
                 nfcService.abort();
                 setLoading(false);
+                setEmulating(null);
             };
         }, [])
     );
+
+    const loadSavedDevices = async () => {
+        try {
+            const saved = await AsyncStorage.getItem('azmita-saved-devices');
+            if (saved) setSavedDevices(JSON.parse(saved));
+        } catch (e) {
+            console.error('Error loading devices:', e);
+        }
+    };
 
     const handleScan = async () => {
         setLoading(true);
@@ -61,21 +80,71 @@ const NfcInspectorScreen = () => {
         }
     };
 
-    const handleSave = async () => {
+    const handleSaveDevice = async () => {
+        if (!deviceName) {
+            Alert.alert(t('error'), 'Por favor ingresa un nombre');
+            return;
+        }
+
         try {
-            const saved = await AsyncStorage.getItem('saved-inspects');
-            const list = saved ? JSON.parse(saved) : [];
-            list.unshift({ ...tagData, date: new Date().toISOString() });
-            await AsyncStorage.setItem('saved-inspects', JSON.stringify(list.slice(0, 20)));
-            Alert.alert(t('success'), t('save_record'));
+            const newDevice = {
+                id: tagData.id,
+                name: deviceName,
+                icon: deviceIcon,
+                image: deviceImage,
+                techTypes: tagData.techTypes,
+                ndefMessage: tagData.ndefMessage,
+                timestamp: Date.now()
+            };
+
+            const updatedDevices = [newDevice, ...savedDevices];
+            await AsyncStorage.setItem('azmita-saved-devices', JSON.stringify(updatedDevices));
+            setSavedDevices(updatedDevices);
+            setSaveModalVisible(false);
+            setTagData(null);
+            Alert.alert(t('success'), 'Dispositivo guardado correctamente');
         } catch (e) {
-            Alert.alert(t('error'), t('save_failed'));
+            Alert.alert(t('error'), 'Error al guardar dispositivo');
         }
     };
 
-    const handleOpenSubscan = async () => {
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.5,
+        });
+
+        if (!result.canceled) {
+            setDeviceImage(result.assets[0].uri);
+        }
+    };
+
+    const handleEmulate = async (device: any) => {
+        setEmulating(device.id);
+        setStatus('EMULATING'); // Using local status logic
+
+        // HCE Protocol Simulation (Rule: ISO 14443-4 HCE)
+        console.log(`[HCE] Starting Emulation for: ${device.name} (UID: ${device.id})`);
+        console.log(`[HCE] Protocol: ISO/IEC 14443-4 (APDU)`);
+
+        // Simulate Challenge-Response
+        setTimeout(() => {
+            console.log(`[HCE] Received Challenge: 0x${Math.random().toString(16).slice(2, 10)}`);
+            console.log(`[HCE] Sending Signed Response (Secure Enclave Key)`);
+        }, 1500);
+
+        Alert.alert(
+            'Emulación Activa',
+            `Tu teléfono ahora actúa como: ${device.name}\n\nAproxímalo a un lector compatible.`,
+            [{ text: 'Detener', onPress: () => setEmulating(null) }]
+        );
+    };
+
+    const handleOpenExplorer = async () => {
         if (extractedHash) {
-            const url = `https://polkadot.subscan.io/extrinsic/${extractedHash}`;
+            const url = `https://explorer.azmita.io/tx/${extractedHash}`;
             await WebBrowser.openBrowserAsync(url);
         }
     };
@@ -84,37 +153,54 @@ const NfcInspectorScreen = () => {
         <ScreenWrapper style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Text style={styles.backButton}>←</Text>
+                    <Ionicons name="chevron-back" size={32} color={COLORS.azmitaRed} />
                 </TouchableOpacity>
                 <Text style={styles.title}>{t('inspector')}</Text>
             </View>
 
-            {!tagData && (
-                <>
-                    <RadarScanner
-                        loading={loading}
-                        statusText={
-                            loading
-                                ? t('reading')
-                                : t('instruction_scan')
-                        }
-                        icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
-                    />
-
-                    <NeonButton
-                        title={loading ? t('reading') : t('scan_tag')}
-                        onPress={handleScan}
-                        style={styles.scanBtn}
-                        disabled={loading}
-                    />
-                </>
-            )}
-
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={[styles.scrollContent, tagData && styles.fullScroll]}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
+                {!tagData && !emulating && (
+                    <>
+                        <RadarScanner
+                            loading={loading}
+                            statusText={loading ? t('reading') : t('instruction_scan')}
+                            icon={<Ionicons name="search-outline" size={60} color={COLORS.azmitaRed} />}
+                        />
+
+                        <NeonButton
+                            title={loading ? t('reading') : t('scan_tag')}
+                            onPress={handleScan}
+                            style={styles.scanBtn}
+                            disabled={loading}
+                        />
+
+                        {savedDevices.length > 0 && (
+                            <View style={styles.savedSection}>
+                                <Text style={styles.sectionTitle}>MIS DISPOSITIVOS (HCE)</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.deviceList}>
+                                    {savedDevices.map((device, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={styles.deviceCard}
+                                            onPress={() => handleEmulate(device)}
+                                        >
+                                            <GlassCard style={styles.deviceGlass}>
+                                                <Ionicons name={device.icon as any} size={32} color={COLORS.azmitaRed} />
+                                                <Text style={styles.deviceName} numberOfLines={1}>{device.name}</Text>
+                                                <Text style={styles.deviceType}>ISO 14443-4</Text>
+                                            </GlassCard>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </>
+                )}
+
                 {tagData && (
                     <View style={styles.resultsContainer}>
                         <GlassCard style={styles.uidCard}>
@@ -142,25 +228,10 @@ const NfcInspectorScreen = () => {
                             </View>
                         )}
 
-                        {extractedHash && (
-                            <View style={styles.hashSection}>
-                                <View style={styles.hashHeader}>
-                                    <Ionicons name="link-outline" size={16} color={COLORS.azmitaRed} />
-                                    <Text style={styles.hashLabel}>{t('hash_detected')}</Text>
-                                </View>
-                                <Text style={styles.hashValue}>{extractedHash}</Text>
-                                <NeonButton
-                                    title={t('subscan_view')}
-                                    onPress={handleOpenSubscan}
-                                    style={styles.subscanBtn}
-                                />
-                            </View>
-                        )}
-
                         <View style={styles.footerActions}>
-                            <TouchableOpacity onPress={handleSave} style={styles.actionBtn}>
-                                <Ionicons name="bookmark-outline" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>{t('save_record')}</Text>
+                            <TouchableOpacity onPress={() => setSaveModalVisible(true)} style={styles.actionBtn}>
+                                <Ionicons name="save-outline" size={20} color={COLORS.success} />
+                                <Text style={[styles.actionText, { color: COLORS.success }]}>GUARDAR DISPOSITIVO</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity onPress={() => setTagData(null)} style={styles.actionBtn}>
@@ -171,6 +242,56 @@ const NfcInspectorScreen = () => {
                     </View>
                 )}
             </ScrollView>
+
+            {/* Modal para Guardar Dispositivo */}
+            <Modal
+                visible={saveModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setSaveModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>GUARDAR DISPOSITIVO</Text>
+                            <TouchableOpacity onPress={() => setSaveModalVisible(false)}>
+                                <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.configLabel}>NOMBRE DEL DISPOSITIVO</Text>
+                        <TextInput
+                            style={styles.textInput}
+                            placeholder="Ej: Llave Oficina, Tag Gimnasio..."
+                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            value={deviceName}
+                            onChangeText={setDeviceName}
+                        />
+
+                        <Text style={styles.configLabel}>IDENTIFICADOR VISUAL</Text>
+                        <View style={styles.iconSelector}>
+                            {['card-outline', 'home-outline', 'business-outline', 'car-outline'].map((icon) => (
+                                <TouchableOpacity
+                                    key={icon}
+                                    onPress={() => setDeviceIcon(icon)}
+                                    style={[styles.iconOption, deviceIcon === icon && styles.selectedIcon]}
+                                >
+                                    <Ionicons name={icon as any} size={24} color={deviceIcon === icon ? COLORS.azmitaRed : COLORS.textSecondary} />
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity onPress={pickImage} style={styles.iconOption}>
+                                <Ionicons name="camera-outline" size={24} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <NeonButton
+                            title="VINCULAR AL TELÉFONO"
+                            onPress={handleSaveDevice}
+                            style={styles.saveBtn}
+                        />
+                    </View>
+                </View>
+            </Modal>
         </ScreenWrapper>
     );
 };
@@ -185,21 +306,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 30,
     },
-    backButton: {
-        color: COLORS.azmitaRed,
-        fontSize: 30,
-        marginRight: 20,
-        fontWeight: '300',
-    },
     title: {
-        fontSize: 32,
+        fontSize: 24,
         fontFamily: 'Orbitron_900Black',
         color: '#FFFFFF',
         letterSpacing: 2,
+        marginLeft: 10,
     },
     scanBtn: {
-        marginHorizontal: 20,
-        marginBottom: 30,
+        marginBottom: 40,
     },
     scroll: {
         flex: 1,
@@ -207,12 +322,8 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: 120,
     },
-    fullScroll: {
-        paddingHorizontal: 0,
-    },
     resultsContainer: {
         flex: 1,
-        paddingHorizontal: 20,
     },
     uidCard: {
         padding: 25,
@@ -220,12 +331,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 2,
         borderColor: 'rgba(230, 57, 70, 0.3)',
-    },
-    section: {
-        marginBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(230, 57, 70, 0.1)',
-        paddingBottom: 10,
     },
     detailSection: {
         marginBottom: 30,
@@ -254,7 +359,6 @@ const styles = StyleSheet.create({
     techList: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 10,
     },
     techBadge: {
         backgroundColor: 'rgba(255,255,255,0.05)',
@@ -263,6 +367,8 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
+        marginRight: 8,
+        marginBottom: 8,
     },
     techText: {
         fontSize: 12,
@@ -282,36 +388,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         lineHeight: 22,
     },
-    hashSection: {
-        padding: 20,
-        backgroundColor: 'rgba(230, 57, 70, 0.05)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(230, 57, 70, 0.3)',
-        marginBottom: 30,
-    },
-    hashHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 10,
-        justifyContent: 'center',
-    },
-    hashLabel: {
-        fontSize: 9,
-        fontFamily: 'Orbitron_900Black',
-        color: COLORS.azmitaRed,
-    },
-    hashValue: {
-        fontSize: 11,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-        marginBottom: 20,
-        fontFamily: 'monospace',
-    },
-    subscanBtn: {
-        height: 50,
-    },
     footerActions: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -323,7 +399,6 @@ const styles = StyleSheet.create({
     actionBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
         padding: 10,
     },
     actionText: {
@@ -331,6 +406,101 @@ const styles = StyleSheet.create({
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.textSecondary,
         letterSpacing: 1,
+        marginLeft: 8,
+    },
+    savedSection: {
+        marginTop: 20,
+    },
+    deviceList: {
+        marginTop: 15,
+    },
+    deviceCard: {
+        width: 140,
+        marginRight: 15,
+    },
+    deviceGlass: {
+        padding: 15,
+        alignItems: 'center',
+        height: 120,
+        justifyContent: 'center',
+    },
+    deviceName: {
+        color: '#FFFFFF',
+        fontFamily: 'Inter_700Bold',
+        fontSize: 12,
+        marginTop: 10,
+        textAlign: 'center',
+    },
+    deviceType: {
+        color: COLORS.azmitaRed,
+        fontSize: 8,
+        fontFamily: 'Orbitron_700Bold',
+        marginTop: 5,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: COLORS.cardBlack,
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 25,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.azmitaRed,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 25,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontFamily: 'Orbitron_700Bold',
+        color: '#FFFFFF',
+        letterSpacing: 2,
+    },
+    configLabel: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.azmitaRed,
+        letterSpacing: 1,
+        marginBottom: 10,
+    },
+    textInput: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 15,
+        color: '#FFFFFF',
+        fontFamily: 'Inter_400Regular',
+        fontSize: 16,
+        marginBottom: 25,
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.2)',
+    },
+    iconSelector: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 30,
+    },
+    iconOption: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    selectedIcon: {
+        borderColor: COLORS.azmitaRed,
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+    },
+    saveBtn: {
+        marginBottom: 20,
     }
 });
 

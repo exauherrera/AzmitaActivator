@@ -10,9 +10,9 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
     const { t } = useTranslation();
 
     const timeline = asset.chainOfCustody || [
-        { date: asset.timestamp - 172800000, event: 'REGISTRO DE FÁBRICA', status: 'VERIFICADO' },
-        { date: asset.timestamp, event: 'VÍNCULO PHYGITAL (AZMITIZACIÓN)', status: 'LOCKED' },
-        { date: Date.now(), event: 'VERIFICACIÓN DE PROPIEDAD', status: 'GENUINE' }
+        { date: asset.timestamp - 172800000, event: 'FACTORY_PROVISIONING', status: 'VERIFIED' },
+        { date: asset.timestamp, event: 'PHYGITAL_VINCULATION', status: 'LOCKED' },
+        { date: Date.now(), event: 'OWNERSHIP_VERIFIED', status: 'GENUINE' }
     ];
 
     return (
@@ -58,7 +58,7 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
                 <Text style={styles.sectionTitle}>CHAIN OF CUSTODY</Text>
 
                 <View style={styles.timelineContainer}>
-                    {timeline.map((item, index) => (
+                    {timeline.map((item: any, index: number) => (
                         <View key={index} style={styles.timelineItem}>
                             <View style={styles.timelineDotContainer}>
                                 <View style={[styles.dot, index === 0 && styles.activeDot]} />
@@ -67,8 +67,14 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
                             <GlassCard style={styles.timelineCard}>
                                 <Text style={styles.eventText}>{item.event}</Text>
                                 <Text style={styles.dateText}>{new Date(item.date).toLocaleString()}</Text>
-                                <View style={[styles.statusBadge, { borderColor: index === 0 ? COLORS.success : COLORS.azmitaRed }]}>
-                                    <Text style={[styles.statusBadgeText, { color: index === 0 ? COLORS.success : COLORS.azmitaRed }]}>{item.status}</Text>
+                                <View style={[
+                                    styles.statusBadge,
+                                    { borderColor: item.status === 'LOCKED' ? COLORS.azmitaRed : (item.status === 'VERIFIED' || item.status === 'GENUINE' ? COLORS.success : COLORS.textSecondary) }
+                                ]}>
+                                    <Text style={[
+                                        styles.statusBadgeText,
+                                        { color: item.status === 'LOCKED' ? COLORS.azmitaRed : (item.status === 'VERIFIED' || item.status === 'GENUINE' ? COLORS.success : COLORS.textSecondary) }
+                                    ]}>{item.status}</Text>
                                 </View>
                             </GlassCard>
                         </View>

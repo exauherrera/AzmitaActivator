@@ -1,24 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Image,
-    Linking,
-    Platform,
-    TextInput,
-    Alert,
-    Clipboard
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform, Modal, Image, TextInput, Clipboard } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
 import { COLORS } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Keyring } from '@polkadot/keyring';
 import { NeonButton } from '../components/NeonButton';
 import Animated, {
     useSharedValue,
@@ -27,23 +14,55 @@ import Animated, {
     withRepeat,
     Easing,
     cancelAnimation,
+    interpolate,
     FadeIn
 } from 'react-native-reanimated';
 import blockchainService, { NETWORKS } from '../services/blockchainService';
 
+interface WalletRecord {
+    id: string;
+    name: string;
+    address: string;
+    mnemonic: string;
+    networkRpc: string;
+}
+
 const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
-    const [walletAddress, setWalletAddress] = useState('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
-    const [balance, setBalance] = useState('0.00');
-    const [isEditing, setIsEditing] = useState(false);
+    const [walletAddress, setWalletAddress] = useState('');
+    const [customText, setCustomText] = useState('');
+    const [currentTime, setCurrentTime] = useState({ date: '', time: '' });
+    const [expandedNetwork, setExpandedNetwork] = useState<string | null>(null);
     const [tempAddress, setTempAddress] = useState('');
     const [loadingBalance, setLoadingBalance] = useState(false);
-    const [selectedRpc, setSelectedRpc] = useState(NETWORKS.polkadot);
-    const [tokenSymbol, setTokenSymbol] = useState('DOT');
+    const [selectedRpc, setSelectedRpc] = useState(NETWORKS.mainnet.rpc);
+    const [tokenSymbol, setTokenSymbol] = useState('AZM');
     const [showSeed, setShowSeed] = useState(false);
     const [savedMnemonic, setSavedMnemonic] = useState('');
+    const [balance, setBalance] = useState('0.00');
+    const [isEditing, setIsEditing] = useState(false);
+
+    // Wizard State
+    const [wizardVisible, setWizardVisible] = useState(false);
+    const [wizardStep, setWizardStep] = useState(1);
+    const [newMnemonic, setNewMnemonic] = useState('');
+    const [verifyWordIndex, setVerifyWordIndex] = useState(0);
+    const [verifyWordInput, setVerifyWordInput] = useState('');
+    const [newAddress, setNewAddress] = useState('');
+
+    // Recovery State
+    const [recoverVisible, setRecoverVisible] = useState(false);
+    const [recoveryMnemonic, setRecoveryMnemonic] = useState('');
+    const [savedWallets, setSavedWallets] = useState<WalletRecord[]>([]);
+    const [addWalletModalVisible, setAddWalletModalVisible] = useState(false);
+    const [newWalletName, setNewWalletName] = useState('');
+    const [newWalletNetwork, setNewWalletNetwork] = useState(NETWORKS.mainnet.rpc);
+    const [newWalletParaRpc, setNewWalletParaRpc] = useState<string | null>(null);
+
+    // UX State
+    const [activeTab, setActiveTab] = useState('account');
+
     const rotation = useSharedValue(0);
-    const networkName = 'Polkadot (Development)';
 
     useEffect(() => {
         loadWallet();
@@ -51,14 +70,14 @@ const SettingsScreen = () => {
 
     useEffect(() => {
         if (walletAddress) {
-            fetchBalance();
+            fetchBalance(walletAddress);
         }
     }, [walletAddress]);
 
     const loadWallet = async () => {
         // Try to load address first for display
         const savedAddress = await AsyncStorage.getItem('user-wallet-address');
-        const savedSeed = await AsyncStorage.getItem('user-wallet');
+        const savedSeed = await AsyncStorage.getItem('user-wallet-mnemonic');
 
         if (savedAddress) {
             setWalletAddress(savedAddress);
@@ -67,30 +86,70 @@ const SettingsScreen = () => {
             setWalletAddress(savedSeed);
         }
 
-        const savedRpc = await AsyncStorage.getItem('user-network');
+        const savedRpc = await AsyncStorage.getItem('user-selected-network');
         if (savedRpc) {
             setSelectedRpc(savedRpc);
             await blockchainService.switchNetwork(savedRpc);
+        } else {
+            // Default to mainnet if nothing saved
+            setSelectedRpc(NETWORKS.mainnet.rpc);
+            await blockchainService.switchNetwork(NETWORKS.mainnet.rpc);
         }
 
         if (savedSeed) {
             setSavedMnemonic(savedSeed);
         }
+
+        const walletsJson = await AsyncStorage.getItem('azmita-saved-wallets');
+        if (walletsJson) {
+            setSavedWallets(JSON.parse(walletsJson));
+        }
     };
 
-    const fetchBalance = async () => {
+    const fetchBalance = async (addressOverride?: string) => {
+        const addressToQuery = addressOverride || walletAddress;
+        if (!addressToQuery) return;
+
         setLoadingBalance(true);
         rotation.value = withRepeat(
             withTiming(360, { duration: 1000, easing: Easing.linear }),
             -1,
             false
         );
-        const { formatted, symbol } = await blockchainService.getBalance(walletAddress);
-        setBalance(formatted);
-        setTokenSymbol(symbol);
+        const { formatted, symbol } = await blockchainService.getBalance(addressToQuery);
+        setBalance(formatted as string);
+        setTokenSymbol(symbol as string);
         setLoadingBalance(false);
         cancelAnimation(rotation);
         rotation.value = withTiming(0);
+    };
+
+    const handleRecoverWallet = async () => {
+        if (!recoveryMnemonic.trim()) return;
+
+        const isValid = await blockchainService.validateMnemonic(recoveryMnemonic.trim());
+        if (!isValid) {
+            Alert.alert(t('error'), t('recover_error'));
+            return;
+        }
+
+        try {
+            // Agnostic identification: Just use the mnemonic as seed or first word as address
+            const mockAddress = 'AZM' + recoveryMnemonic.substring(0, 8).toUpperCase();
+
+            await AsyncStorage.setItem('user-wallet-mnemonic', recoveryMnemonic.trim());
+            await AsyncStorage.setItem('user-wallet-address', mockAddress);
+
+            setWalletAddress(mockAddress);
+            setSavedMnemonic(recoveryMnemonic.trim());
+            setRecoverVisible(false);
+            setRecoveryMnemonic('');
+
+            Alert.alert(t('success'), t('recover_success'));
+            fetchBalance(mockAddress);
+        } catch (e) {
+            Alert.alert(t('error'), t('recover_error'));
+        }
     };
 
     const spinStyle = useAnimatedStyle(() => ({
@@ -109,6 +168,60 @@ const SettingsScreen = () => {
         setIsEditing(!isEditing);
     };
 
+    const handleAddWallet = async () => {
+        if (!newWalletName.trim()) {
+            Alert.alert(t('error'), 'Por favor ingresa un nombre');
+            return;
+        }
+
+        const newRecord: WalletRecord = {
+            id: Date.now().toString(),
+            name: newWalletName,
+            address: walletAddress,
+            mnemonic: savedMnemonic,
+            networkRpc: newWalletParaRpc || newWalletNetwork
+        };
+
+        const updatedWallets = [...savedWallets, newRecord];
+        setSavedWallets(updatedWallets);
+        await AsyncStorage.setItem('azmita-saved-wallets', JSON.stringify(updatedWallets));
+
+        setNewWalletName('');
+        setNewWalletParaRpc(null);
+        setAddWalletModalVisible(false);
+        Alert.alert(t('success'), 'Cartera guardada');
+    };
+
+    const handleActivateWallet = async (wallet: WalletRecord) => {
+        try {
+            // Update active wallet states
+            setWalletAddress(wallet.address);
+            setSavedMnemonic(wallet.mnemonic);
+
+            // Persist as current primary wallet
+            await AsyncStorage.setItem('user-wallet-address', wallet.address);
+            await AsyncStorage.setItem('user-wallet-mnemonic', wallet.mnemonic);
+
+            // Switch network synchronized
+            setSelectedRpc(wallet.networkRpc);
+            await blockchainService.switchNetwork(wallet.networkRpc);
+            await AsyncStorage.setItem('user-selected-network', wallet.networkRpc);
+
+            // Update UI/Feedback
+            fetchBalance(wallet.address);
+            Alert.alert(t('success'), t('wallet_activated'));
+        } catch (e) {
+            console.error('Activation error:', e);
+            Alert.alert(t('error'), 'No se pudo activar la cartera');
+        }
+    };
+
+    const handleDeleteWallet = async (id: string) => {
+        const updated = savedWallets.filter(w => w.id !== id);
+        setSavedWallets(updated);
+        await AsyncStorage.setItem('azmita-saved-wallets', JSON.stringify(updated));
+    };
+
     const handleSaveWallet = async () => {
         const input = tempAddress.trim();
         if (!input) {
@@ -118,14 +231,13 @@ const SettingsScreen = () => {
 
         let addressToStore = input;
 
-        // If input looks like a mnemonic or seed, derive address
+        // If input looks like a mnemonic or seed, handle generically
         if (input.split(' ').length >= 12 || input.startsWith('//')) {
             try {
-                const keyring = new Keyring({ type: 'sr25519' });
-                const pair = keyring.addFromUri(input);
-                addressToStore = pair.address;
+                const mockAddress = 'AZM' + input.substring(0, 8).toUpperCase();
+                addressToStore = mockAddress;
                 // Save the mnemonic separately
-                await AsyncStorage.setItem('user-wallet', input);
+                await AsyncStorage.setItem('user-wallet-mnemonic', input);
                 console.log('[SETTINGS] Input recognized as seed. Saved both seed and derived address.');
             } catch (e) {
                 console.warn('[SETTINGS] Could not derive address from input, saving as raw string.');
@@ -136,7 +248,7 @@ const SettingsScreen = () => {
         setWalletAddress(addressToStore);
         setIsEditing(false);
         Alert.alert(t('success'), t('save_record'));
-        fetchBalance();
+        fetchBalance(addressToStore);
     };
 
     const handleNetworkChange = async (rpcUrl: string) => {
@@ -144,33 +256,48 @@ const SettingsScreen = () => {
         setLoadingBalance(true);
         setSelectedRpc(rpcUrl);
         await blockchainService.switchNetwork(rpcUrl);
-        await AsyncStorage.setItem('user-network', rpcUrl);
-        await fetchBalance();
+        await AsyncStorage.setItem('user-selected-network', rpcUrl);
+        fetchBalance();
     };
 
-    const handleGenerateWallet = async () => {
-        Alert.alert(
-            t('generate_wallet_title') || 'Generar Nueva Wallet',
-            t('generate_wallet_warn') || 'Esto reemplazará tu llave actual. Asegúrate de guardar tu nueva dirección.',
-            [
-                { text: t('cancel'), style: 'cancel' },
-                {
-                    text: t('confirm'),
-                    onPress: async () => {
-                        const newWallet = await blockchainService.generateNewWallet();
-                        await AsyncStorage.setItem('user-wallet', newWallet.mnemonic);
-                        await AsyncStorage.setItem('user-wallet-address', newWallet.address);
-                        setWalletAddress(newWallet.address);
-                        setSavedMnemonic(newWallet.mnemonic);
-                        setShowSeed(true);
-                        Alert.alert(
-                            t('success'),
-                            `${t('new_wallet_created')}\n\n${t('mnemonic_warn')}`
-                        );
-                    }
-                }
-            ]
-        );
+    const startWalletWizard = async () => {
+        setLoadingBalance(true);
+        try {
+            const wallet = await blockchainService.generateNewWallet();
+            setNewMnemonic(wallet.mnemonic);
+            setNewAddress(wallet.address);
+            setWizardStep(1);
+            setWizardVisible(true);
+            // Random word index for verification (0 to 11)
+            setVerifyWordIndex(Math.floor(Math.random() * 12));
+            setVerifyWordInput('');
+        } catch (e) {
+            Alert.alert(t('error'), 'Failed to generate wallet entropy.');
+        } finally {
+            setLoadingBalance(false);
+        }
+    };
+
+    const handleWizardNext = () => {
+        if (wizardStep < 3) {
+            setWizardStep(wizardStep + 1);
+        }
+    };
+
+    const handleFinalizeWizard = async () => {
+        const words = newMnemonic.split(' ');
+        if (verifyWordInput.trim().toLowerCase() !== words[verifyWordIndex].toLowerCase()) {
+            Alert.alert(t('error'), t('wizard_error_verify'));
+            return;
+        }
+
+        await AsyncStorage.setItem('user-wallet-mnemonic', newMnemonic);
+        await AsyncStorage.setItem('user-wallet-address', newAddress);
+        setWalletAddress(newAddress);
+        setSavedMnemonic(newMnemonic);
+        setWizardVisible(false);
+        Alert.alert(t('success'), t('wizard_finish'));
+        fetchBalance(newAddress);
     };
 
     const handleCopy = (text: string, label: string) => {
@@ -178,211 +305,655 @@ const SettingsScreen = () => {
         Alert.alert(t('success'), label);
     };
 
+    const getNetworkInfo = (key: string) => {
+        const config = (NETWORKS as any)[key];
+        if (!config) return { token: '???', explorer: 'Unknown', type: 'Unknown', contract: 'N/A' };
+
+        return {
+            token: config.symbol,
+            explorer: config.explorer,
+            type: config.name.includes('Mainnet') ? 'Mainnet' : 'Testnet/Dev',
+            contract: config.name.includes('Asset') ? 'Agnostic Assets' : 'System Native'
+        };
+    };
+
+    const activeNetwork = blockchainService.getNetworkConfig();
+    const isParachainActive = Object.values(NETWORKS).some(n => n.parachains?.some(p => p.rpc === selectedRpc));
+
     return (
-        <ScreenWrapper>
+        <ScreenWrapper style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t('settings')}</Text>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('language')}</Text>
-                    <View style={styles.languageRow}>
-                        <TouchableOpacity
-                            style={[styles.langBtn, i18n.language === 'es' && styles.langBtnActive]}
-                            onPress={() => changeLanguage('es')}
-                        >
-                            <Text style={[styles.langText, i18n.language === 'es' && styles.langTextActive]}>Español</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.langBtn, i18n.language === 'en' && styles.langBtnActive]}
-                            onPress={() => changeLanguage('en')}
-                        >
-                            <Text style={[styles.langText, i18n.language === 'en' && styles.langTextActive]}>English</Text>
-                        </TouchableOpacity>
+                <View style={styles.networkBadgeContainer}>
+                    {isParachainActive && (
+                        <View style={styles.paraBadge}>
+                            <Text style={styles.paraBadgeText}>PARACHAIN</Text>
+                        </View>
+                    )}
+                    <View style={styles.networkBadgeSmall}>
+                        <View style={styles.networkDotSmall} />
+                        <Text style={styles.networkTextSmall}>{activeNetwork.name}</Text>
                     </View>
                 </View>
+            </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('account_management') || 'MI CUENTA'}</Text>
+            {/* Premium Tab Bar */}
+            <View style={styles.tabBar}>
+                {['account', 'network', 'about'].map((tab) => (
+                    <TouchableOpacity
+                        key={tab}
+                        onPress={() => setActiveTab(tab)}
+                        style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
+                    >
+                        <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                            {t(`tab_${tab}`)}
+                        </Text>
+                        {activeTab === tab && <Animated.View entering={FadeIn} style={styles.tabIndicator} />}
+                    </TouchableOpacity>
+                ))}
+            </View>
 
-                    <GlassCard style={styles.balanceCard}>
-                        <View style={styles.balanceHeader}>
-                            <Text style={styles.balanceLabel}>{t('total_balance') || 'SALDO DISPONIBLE'}</Text>
-                            <TouchableOpacity onPress={fetchBalance}>
-                                <Animated.View style={spinStyle}>
-                                    <Ionicons
-                                        name="refresh-circle-outline"
-                                        size={24}
-                                        color={COLORS.azmitaRed}
-                                    />
-                                </Animated.View>
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={styles.balanceValue}>{balance} <Text style={styles.currency}>{tokenSymbol}</Text></Text>
-                    </GlassCard>
+            <ScrollView
+                contentContainerStyle={styles.scroll}
+                showsVerticalScrollIndicator={false}
+            >
+                {activeTab === 'account' && (
+                    <Animated.View entering={FadeIn}>
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>{t('account_management') || 'MI CUENTA'}</Text>
 
-                    <GlassCard style={styles.infoCard}>
-                        <View style={styles.walletHeader}>
-                            <Ionicons name="wallet-outline" size={20} color={COLORS.azmitaRed} />
-                            <Text style={styles.infoLabel}>{t('wallet_address')}</Text>
-                        </View>
-
-                        {isEditing ? (
-                            <View style={styles.editContainer}>
-                                <TextInput
-                                    style={styles.input}
-                                    value={tempAddress}
-                                    onChangeText={setTempAddress}
-                                    placeholder={t('enter_address')}
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                />
-                                <NeonButton
-                                    title={t('save_record')}
-                                    onPress={handleSaveWallet}
-                                    style={styles.saveBtn}
-                                />
-                            </View>
-                        ) : (
-                            <>
-                                <TouchableOpacity style={styles.addressContainer} onPress={() => handleCopy(walletAddress, t('copy_address') || 'Dirección copiada')}>
-                                    <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
-                                        {walletAddress}
-                                    </Text>
-                                    <Ionicons name="copy-outline" size={16} color={COLORS.azmitaRed} />
-                                </TouchableOpacity>
-
-                                <View style={styles.actionRow}>
-                                    <TouchableOpacity style={styles.actionBtn} onPress={handleEditToggle}>
-                                        <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
-                                        <Text style={styles.actionBtnText}>{t('edit_wallet') || 'EDITAR'}</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateWallet}>
-                                        <Ionicons name="add-circle-outline" size={18} color={COLORS.azmitaRed} />
-                                        <Text style={[styles.actionBtnText, { color: COLORS.azmitaRed }]}>{t('generate_new') || 'GENERAR NUEVA'}</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {savedMnemonic ? (
-                                    <View style={styles.mnemonicSection}>
-                                        <TouchableOpacity
-                                            style={styles.showSeedBtn}
-                                            onPress={() => setShowSeed(!showSeed)}
-                                        >
+                            <GlassCard style={styles.balanceCard}>
+                                <View style={styles.balanceHeader}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={styles.balanceLabel}>{t('total_balance') || 'SALDO DISPONIBLE'}</Text>
+                                        <View style={styles.currencyBadge}>
+                                            <Text style={styles.currencyBadgeText}>{tokenSymbol}</Text>
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity onPress={() => fetchBalance()}>
+                                        <Animated.View style={spinStyle}>
                                             <Ionicons
-                                                name={showSeed ? "eye-off-outline" : "eye-outline"}
-                                                size={18}
+                                                name="refresh-circle-outline"
+                                                size={24}
                                                 color={COLORS.azmitaRed}
                                             />
-                                            <Text style={styles.showSeedText}>
-                                                {showSeed ? t('hide_seed') : t('show_seed')}
+                                        </Animated.View>
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={styles.balanceValue} adjustsFontSizeToFit numberOfLines={1}>{balance}</Text>
+                            </GlassCard>
+
+                            <GlassCard style={styles.infoCard}>
+                                <View style={styles.walletHeader}>
+                                    <Ionicons name="wallet-outline" size={20} color={COLORS.azmitaRed} />
+                                    <Text style={styles.infoLabel}>{t('wallet_address')}</Text>
+                                </View>
+
+                                {isEditing ? (
+                                    <View style={styles.editContainer}>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={tempAddress}
+                                            onChangeText={setTempAddress}
+                                            placeholder={t('enter_address')}
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                        />
+                                        <NeonButton
+                                            title={t('save_record')}
+                                            onPress={handleSaveWallet}
+                                            style={styles.saveBtn}
+                                        />
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity style={styles.addressContainer} onPress={() => handleCopy(walletAddress, t('copy_address') || 'Dirección copiada')}>
+                                            <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
+                                                {walletAddress}
                                             </Text>
+                                            <Ionicons name="copy-outline" size={16} color={COLORS.azmitaRed} />
                                         </TouchableOpacity>
 
-                                        {showSeed && (
-                                            <Animated.View entering={FadeIn} style={styles.mnemonicContainer}>
-                                                <View style={styles.warningCard}>
-                                                    <Ionicons name="warning-outline" size={24} color="#FFB703" />
-                                                    <Text style={styles.mnemonicWarning}>{t('mnemonic_warn')}</Text>
-                                                </View>
+                                        <View style={styles.actionRow}>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={handleEditToggle}>
+                                                <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
+                                                <Text style={styles.actionBtnText}>{t('edit_wallet') || 'EDITAR'}</Text>
+                                            </TouchableOpacity>
 
-                                                <View style={styles.seedGrid}>
-                                                    {savedMnemonic.split(' ').map((word, index) => (
-                                                        <View key={index} style={styles.wordBadge}>
-                                                            <Text style={styles.wordIndex}>{index + 1}</Text>
-                                                            <Text style={styles.wordText} numberOfLines={1} ellipsizeMode="tail">{word}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={startWalletWizard}>
+                                                <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.azmitaRed} />
+                                                <Text style={[styles.actionBtnText, { color: COLORS.azmitaRed }]}>{t('wizard_title') || 'CONFIGURAR'}</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => setRecoverVisible(true)}>
+                                                <Ionicons name="download-outline" size={18} color={COLORS.textSecondary} />
+                                                <Text style={styles.actionBtnText}>{t('recover_title') || 'RECUPERAR'}</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { borderColor: 'rgba(230, 57, 70, 0.4)' }]}
+                                                onPress={() => setAddWalletModalVisible(true)}
+                                                disabled={!walletAddress}
+                                            >
+                                                <Ionicons name="save-outline" size={18} color={COLORS.azmitaRed} />
+                                                <Text style={[styles.actionBtnText, { color: COLORS.azmitaRed }]}>{t('save_wallet') || 'GUARDAR'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        {savedMnemonic ? (
+                                            <View style={styles.mnemonicSection}>
                                                 <TouchableOpacity
-                                                    style={styles.copySeedBtn}
-                                                    onPress={() => handleCopy(savedMnemonic, t('success'))}
+                                                    style={styles.showSeedBtn}
+                                                    onPress={() => setShowSeed(!showSeed)}
                                                 >
-                                                    <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
-                                                    <Text style={styles.copySeedText}>{t('copy_seed')}</Text>
+                                                    <Ionicons
+                                                        name={showSeed ? "eye-off-outline" : "eye-outline"}
+                                                        size={18}
+                                                        color={COLORS.azmitaRed}
+                                                    />
+                                                    <Text style={styles.showSeedText}>
+                                                        {showSeed ? t('hide_seed') : t('show_seed')}
+                                                    </Text>
                                                 </TouchableOpacity>
-                                            </Animated.View>
-                                        )}
-                                    </View>
-                                ) : null}
-                            </>
-                        )}
-                    </GlassCard>
-                </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('network')}</Text>
-                    <GlassCard style={styles.networkCard}>
-                        <View style={styles.networkHeader}>
-                            <Image
-                                source={require('../../assets/polkadot_icon.jpg')}
-                                style={styles.polkadotLogo}
-                            />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>{t('connected_to')}</Text>
+                                                {showSeed && (
+                                                    <Animated.View entering={FadeIn} style={styles.mnemonicContainer}>
+                                                        <View style={styles.warningCard}>
+                                                            <Ionicons name="warning-outline" size={24} color="#FFB703" />
+                                                            <Text style={styles.mnemonicWarning}>{t('mnemonic_warn')}</Text>
+                                                        </View>
+                                                        <View style={styles.seedGrid}>
+                                                            {savedMnemonic.split(' ').map((word, index) => (
+                                                                <View key={index} style={styles.wordBadge}>
+                                                                    <Text style={styles.wordIndex}>{index + 1}</Text>
+                                                                    <Text style={styles.wordText} numberOfLines={1} ellipsizeMode="tail">{word}</Text>
+                                                                </View>
+                                                            ))}
+                                                        </View>
+                                                        <TouchableOpacity
+                                                            style={styles.copySeedBtn}
+                                                            onPress={() => handleCopy(savedMnemonic, 'Seed phrase copied')}
+                                                        >
+                                                            <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
+                                                            <Text style={styles.copySeedText}>{t('copy_seed')}</Text>
+                                                        </TouchableOpacity>
+                                                    </Animated.View>
+                                                )}
+                                            </View>
+                                        ) : null}
+                                    </>
+                                )}
+                            </GlassCard>
+
+                            <View style={[styles.section, { marginTop: 30 }]}>
+                                <Text style={styles.sectionTitle}>{t('saved_wallets')}</Text>
+
+                                {savedWallets.map((wallet) => {
+                                    const isActive = wallet.address === walletAddress;
+
+                                    // Identify network/parachain
+                                    let networkName = 'Unknown Network';
+                                    const allNets = Object.values(NETWORKS);
+                                    const primary = allNets.find(n => n.rpc === wallet.networkRpc);
+                                    if (primary) {
+                                        networkName = primary.name;
+                                    } else {
+                                        // Check inside ALL relay chains
+                                        for (const relay of allNets) {
+                                            const para = relay.parachains?.find(p => p.rpc === wallet.networkRpc);
+                                            if (para) {
+                                                networkName = `${relay.name}: ${para.name}`;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    return (
+                                        <GlassCard key={wallet.id} style={[styles.walletCard, isActive && styles.activeWalletCard]}>
+                                            <Ionicons
+                                                name="wallet"
+                                                size={24}
+                                                color={isActive ? "#00FFA3" : COLORS.azmitaRed}
+                                            />
+                                            <View style={styles.walletListInfo}>
+                                                <Text style={styles.walletListName}>{wallet.name}</Text>
+                                                <Text style={styles.walletListAddr} numberOfLines={1} ellipsizeMode="middle">
+                                                    {wallet.address}
+                                                </Text>
+                                                <Text style={styles.walletListNetwork}>
+                                                    {networkName}
+                                                </Text>
+                                            </View>
+
+                                            <View style={styles.rpcActions}>
+                                                {!isActive ? (
+                                                    <TouchableOpacity
+                                                        style={styles.activateBtnSmall}
+                                                        onPress={() => handleActivateWallet(wallet)}
+                                                    >
+                                                        <Text style={styles.activateBtnTextSmall}>{t('activate').toUpperCase()}</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <Ionicons name="checkmark-circle" size={24} color="#00FFA3" />
+                                                )}
+
+                                                <TouchableOpacity
+                                                    style={styles.deleteBtnSmall}
+                                                    onPress={() => handleDeleteWallet(wallet.id)}
+                                                >
+                                                    <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.3)" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </GlassCard>
+                                    );
+                                })}
+
+                                {savedWallets.length === 0 && (
+                                    <Text style={[styles.stepDesc, { textAlign: 'left', opacity: 0.5 }]}>
+                                        Aún no tienes carteras guardadas.
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                    </Animated.View>
+                )}
+
+                {activeTab === 'network' && (
+                    <Animated.View entering={FadeIn}>
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>{t('network')}</Text>
+                            <GlassCard style={styles.networkCard}>
+                                <View style={styles.networkHeader}>
+                                    <View style={styles.statusDot} />
+                                    <Text style={styles.networkStatus}>{t('network_status')}</Text>
+                                </View>
                                 <Text style={styles.infoValue} numberOfLines={1}>
-                                    {selectedRpc === NETWORKS.polkadot ? 'Polkadot Mainnet' :
-                                        selectedRpc === NETWORKS.westend ? 'Westend Testnet' : 'Paseo Relay Chain'}
+                                    {blockchainService.getNetworkConfig().name}
                                 </Text>
+                            </GlassCard>
+
+                            <View style={styles.rpcList}>
+                                {Object.entries(NETWORKS).map(([key, config]) => {
+                                    const isExpanded = expandedNetwork === key;
+                                    const activeConfig = blockchainService.getNetworkConfig();
+                                    const isParaOfThis = config.parachains?.some(p => p.rpc === selectedRpc);
+                                    const isActive = selectedRpc === config.rpc || isParaOfThis;
+                                    const networkInfo = getNetworkInfo(key);
+
+                                    // Dynamic name for Relay chain if a para is active
+                                    const displayName = isParaOfThis ? `${t(`network_${key}`)}: ${activeConfig.name}` : t(`network_${key}`);
+
+                                    return (
+                                        <View key={key} style={styles.networkCardWrapper}>
+                                            <View style={[styles.rpcBtn, isActive && styles.rpcBtnActive, { padding: 0 }]}>
+                                                <TouchableOpacity
+                                                    style={styles.rpcMainAction}
+                                                    onPress={() => !isActive ? handleNetworkChange(config.rpc) : setExpandedNetwork(isExpanded ? null : key)}
+                                                >
+                                                    <View style={styles.rpcInfo}>
+                                                        <Image
+                                                            source={require('../../assets/polkadot_icon.jpg')}
+                                                            style={[styles.miniLogo, !isActive && { opacity: 0.5 }]}
+                                                        />
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={[styles.rpcName, isActive && styles.rpcNameActive]}>
+                                                                {displayName}
+                                                            </Text>
+                                                            <View style={styles.tokenRow}>
+                                                                <Text style={styles.rpcSubtext}>{activeConfig.symbol}</Text>
+                                                                {!isActive && (
+                                                                    <View style={[styles.activateBadge, { marginLeft: 12 }]}>
+                                                                        <Text style={styles.activateText}>ACTIVATE</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.rpcActions}>
+                                                            {isActive && (
+                                                                <Ionicons name="checkmark-circle" size={20} color="#00FFA3" />
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={styles.rpcExpandBtn}
+                                                    onPress={() => setExpandedNetwork(isExpanded ? null : key)}
+                                                >
+                                                    <Ionicons
+                                                        name={isExpanded ? "chevron-up" : "chevron-down"}
+                                                        size={20}
+                                                        color={COLORS.textSecondary}
+                                                    />
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {isExpanded && (
+                                                <Animated.View entering={FadeIn} style={styles.networkDetails}>
+                                                    <View style={styles.detailRow}>
+                                                        <Ionicons name="link-outline" size={16} color={COLORS.azmitaRed} />
+                                                        <Text style={styles.detailLabel}>RPC URL:</Text>
+                                                    </View>
+                                                    <Text style={styles.detailValue} numberOfLines={1}>{config.rpc}</Text>
+
+                                                    <View style={styles.detailRow}>
+                                                        <Ionicons name="cash-outline" size={16} color={COLORS.azmitaRed} />
+                                                        <Text style={styles.detailLabel}>Token:</Text>
+                                                    </View>
+                                                    <Text style={styles.detailValue}>{networkInfo.token}</Text>
+
+                                                    <View style={styles.detailRow}>
+                                                        <Ionicons name="search-outline" size={16} color={COLORS.azmitaRed} />
+                                                        <Text style={styles.detailLabel}>Block Explorer:</Text>
+                                                    </View>
+                                                    <Text style={styles.detailValue}>{networkInfo.explorer}</Text>
+
+                                                    <View style={styles.detailRow}>
+                                                        <Ionicons name="document-text-outline" size={16} color={COLORS.azmitaRed} />
+                                                        <Text style={styles.detailLabel}>Contract/ID:</Text>
+                                                    </View>
+                                                    <Text style={styles.detailValue}>{networkInfo.contract}</Text>
+
+                                                    <View style={styles.detailRow}>
+                                                        <Ionicons name="information-circle-outline" size={16} color={COLORS.azmitaRed} />
+                                                        <Text style={styles.detailLabel}>Type:</Text>
+                                                    </View>
+                                                    <Text style={styles.detailValue}>{networkInfo.type}</Text>
+
+                                                    {/* Parachain List for Relay Chains */}
+                                                    {config.parachains && (
+                                                        <View style={styles.parachainSection}>
+                                                            <Text style={styles.parachainTitle}>
+                                                                PARACHAINS ({config.name} Ecosystem)
+                                                            </Text>
+                                                            <View style={styles.paraGrid}>
+                                                                {config.parachains.map((para: any) => {
+                                                                    const isParaActive = selectedRpc === para.rpc;
+                                                                    return (
+                                                                        <TouchableOpacity
+                                                                            key={para.name}
+                                                                            style={[styles.paraCard, isParaActive && styles.paraCardActive]}
+                                                                            onPress={() => handleNetworkChange(para.rpc)}
+                                                                        >
+                                                                            <View style={[styles.paraDot, isParaActive && { backgroundColor: '#00FFA3' }]} />
+                                                                            <Text style={[styles.paraName, isParaActive && styles.activeParaText]} numberOfLines={1}>
+                                                                                {para.name}
+                                                                            </Text>
+                                                                            <Text style={styles.paraSymbol}>{para.symbol}</Text>
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
+                                                            </View>
+                                                        </View>
+                                                    )}
+
+
+                                                </Animated.View>
+                                            )}
+                                        </View>
+                                    );
+                                })}
                             </View>
-                            <View style={styles.statusBadge}>
-                                <View style={styles.statusDot} />
-                                <Text style={styles.statusText}>{t('network_status')}</Text>
+                        </View>
+                    </Animated.View>
+                )}
+
+                {activeTab === 'about' && (
+                    <Animated.View entering={FadeIn}>
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>{t('language')}</Text>
+                            <View style={styles.languageRow}>
+                                <TouchableOpacity
+                                    style={[styles.langBtn, i18n.language === 'es' && styles.langBtnActive]}
+                                    onPress={() => changeLanguage('es')}
+                                >
+                                    <Text style={[styles.langText, i18n.language === 'es' && styles.langTextActive]}>Español</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.langBtn, i18n.language === 'en' && styles.langBtnActive]}
+                                    onPress={() => changeLanguage('en')}
+                                >
+                                    <Text style={[styles.langText, i18n.language === 'en' && styles.langTextActive]}>English</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
 
-                        <View style={styles.networkSelector}>
-                            <TouchableOpacity
-                                style={[styles.networkBtn, selectedRpc === NETWORKS.polkadot && styles.networkBtnActive]}
-                                onPress={() => handleNetworkChange(NETWORKS.polkadot)}
-                            >
-                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.polkadot && styles.networkBtnTextActive]}>
-                                    MAINNET
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.networkBtn, selectedRpc === NETWORKS.westend && styles.networkBtnActive]}
-                                onPress={() => handleNetworkChange(NETWORKS.westend)}
-                            >
-                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.westend && styles.networkBtnTextActive]}>
-                                    WESTEND
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.networkBtn, selectedRpc === NETWORKS.paseo && styles.networkBtnActive]}
-                                onPress={() => handleNetworkChange(NETWORKS.paseo)}
-                            >
-                                <Text style={[styles.networkBtnText, selectedRpc === NETWORKS.paseo && styles.networkBtnTextActive]}>
-                                    PASEO RELAY
-                                </Text>
+                        <View style={[styles.section, styles.brandSection]}>
+                            <Image
+                                source={require('../../assets/azmita_logo_red.png')}
+                                style={styles.logo}
+                                resizeMode="contain"
+                            />
+                            <Text style={styles.versionText}>{t('version')}: 1.0.6</Text>
+                            <Text style={styles.devBy}>{t('developed_by')}</Text>
+                            <TouchableOpacity onPress={() => Linking.openURL('https://www.azmita.com')}>
+                                <Text style={styles.website}>www.azmita.com</Text>
                             </TouchableOpacity>
                         </View>
-                    </GlassCard>
-                </View>
-
-                <View style={[styles.section, styles.brandSection]}>
-                    <Image
-                        source={require('../../assets/azmita_logo_red.png')}
-                        style={styles.logo}
-                        resizeMode="contain"
-                    />
-                    <Text style={styles.versionText}>{t('version')}: 1.0.5</Text>
-                    <Text style={styles.devBy}>{t('developed_by')}</Text>
-                    <TouchableOpacity onPress={() => Linking.openURL('https://www.azmita.com')}>
-                        <Text style={styles.website}>www.azmita.com</Text>
-                    </TouchableOpacity>
-                </View>
+                    </Animated.View>
+                )}
             </ScrollView>
+
+            {/* Wallet Wizard Modal */}
+            <Modal visible={wizardVisible} animationType="slide" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.wizardHeader}>
+                            <Text style={styles.wizardTitle}>{t('wizard_title')}</Text>
+                            <TouchableOpacity onPress={() => setWizardVisible(false)}>
+                                <Ionicons name="close" size={24} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                            <View style={styles.stepContainer}>
+                                {wizardStep === 1 && (
+                                    <Animated.View entering={FadeIn}>
+                                        <Ionicons name="shield-outline" size={60} color={COLORS.azmitaRed} style={styles.stepIcon} />
+                                        <Text style={styles.stepTitle}>{t('wizard_step1_title')}</Text>
+                                        <Text style={styles.stepDesc}>{t('wizard_step1_desc')}</Text>
+                                        <TouchableOpacity style={styles.nextBtn} onPress={handleWizardNext}>
+                                            <Text style={styles.nextBtnText}>{t('confirm')}</Text>
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                )}
+
+                                {wizardStep === 2 && (
+                                    <Animated.View entering={FadeIn}>
+                                        <Text style={styles.stepTitle}>{t('wizard_step2_title')}</Text>
+                                        <Text style={styles.stepDesc}>{t('wizard_step2_desc')}</Text>
+
+                                        <View style={styles.seedGridWizard}>
+                                            {newMnemonic.split(' ').map((word, index) => (
+                                                <View key={index} style={styles.wordBadgeWizard}>
+                                                    <Text style={styles.wordIndexWizard}>{index + 1}</Text>
+                                                    <Text style={styles.wordTextWizard}>{word}</Text>
+                                                </View>
+                                            ))}
+                                        </View>
+
+                                        <TouchableOpacity
+                                            style={[styles.copySeedBtn, { marginVertical: 20 }]}
+                                            onPress={() => handleCopy(newMnemonic, t('success'))}
+                                        >
+                                            <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
+                                            <Text style={styles.copySeedText}>{t('copy_seed')}</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity style={styles.nextBtn} onPress={handleWizardNext}>
+                                            <Text style={styles.nextBtnText}>{t('confirm')}</Text>
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                )}
+
+                                {wizardStep === 3 && (
+                                    <Animated.View entering={FadeIn}>
+                                        <Text style={styles.stepTitle}>{t('wizard_step3_title')}</Text>
+                                        <Text style={styles.stepDesc}>{t('wizard_step3_desc')}{verifyWordIndex + 1}</Text>
+
+                                        <TextInput
+                                            style={styles.wizardInput}
+                                            value={verifyWordInput}
+                                            onChangeText={setVerifyWordInput}
+                                            placeholder="?"
+                                            placeholderTextColor="rgba(255,255,255,0.2)"
+                                            autoCapitalize="none"
+                                        />
+
+                                        <TouchableOpacity style={styles.finalizeBtn} onPress={handleFinalizeWizard}>
+                                            <Text style={styles.nextBtnText}>{t('wizard_verify')}</Text>
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                )}
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Recovery Modal */}
+            <Modal visible={recoverVisible} animationType="slide" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.wizardHeader}>
+                            <Text style={styles.wizardTitle}>{t('recover_title')}</Text>
+                            <TouchableOpacity onPress={() => setRecoverVisible(false)}>
+                                <Ionicons name="close" size={24} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                            <Text style={styles.stepDesc}>{t('recover_desc')}</Text>
+
+                            <TextInput
+                                style={[styles.textInput, { minHeight: 80, marginBottom: 20 }]}
+                                value={recoveryMnemonic}
+                                onChangeText={setRecoveryMnemonic}
+                                placeholder="word1 word2 ..."
+                                placeholderTextColor="rgba(255,255,255,0.2)"
+                                multiline
+                                autoCapitalize="none"
+                            />
+
+                            <NeonButton
+                                title={t('recover_btn')}
+                                onPress={handleRecoverWallet}
+                                style={styles.finalizeBtn}
+                            />
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Add Wallet Modal */}
+            <Modal
+                visible={addWalletModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setAddWalletModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.wizardHeader}>
+                            <Text style={styles.wizardTitle}>{t('save_wallet')}</Text>
+                            <TouchableOpacity onPress={() => {
+                                setAddWalletModalVisible(false);
+                                setNewWalletParaRpc(null);
+                            }}>
+                                <Ionicons name="close" size={24} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                            <Text style={styles.inputLabel}>{t('wallet_name')}</Text>
+                            <TextInput
+                                style={styles.textInput}
+                                value={newWalletName}
+                                onChangeText={setNewWalletName}
+                                placeholder="Ej: Ahorros, Trading..."
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                            />
+
+                            <Text style={[styles.inputLabel, { marginTop: 20 }]}>{t('wallet_network')}</Text>
+                            <View style={styles.networkPicker}>
+                                {Object.entries(NETWORKS).map(([key, config]) => (
+                                    <TouchableOpacity
+                                        key={key}
+                                        style={[
+                                            styles.networkOption,
+                                            newWalletNetwork === config.rpc && styles.activeNetworkOption
+                                        ]}
+                                        onPress={() => {
+                                            setNewWalletNetwork(config.rpc);
+                                            setNewWalletParaRpc(null);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.networkOptionText,
+                                            newWalletNetwork === config.rpc && styles.activeNetworkOptionText
+                                        ]}>
+                                            {config.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Parachain selection for Polkadot in Add Wallet Modal */}
+                            {/* Parachain selection for Relay Chains in Add Wallet Modal */}
+                            {(() => {
+                                const selectedNetworkConfig = Object.values(NETWORKS).find(n => n.rpc === newWalletNetwork);
+                                if (selectedNetworkConfig?.parachains) {
+                                    return (
+                                        <View style={[styles.parachainSection, { marginTop: 15 }]}>
+                                            <Text style={styles.parachainTitle}>
+                                                SELECCIONA PARACHAIN (OPCIONAL)
+                                            </Text>
+                                            <View style={styles.paraGrid}>
+                                                {selectedNetworkConfig.parachains.map((para: any) => {
+                                                    const isParaSelected = newWalletParaRpc === para.rpc;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={para.name}
+                                                            style={[styles.paraCard, isParaSelected && styles.paraCardActive, { width: '30%' }]}
+                                                            onPress={() => setNewWalletParaRpc(isParaSelected ? null : para.rpc)}
+                                                        >
+                                                            <View style={[styles.paraDot, isParaSelected && { backgroundColor: '#00FFA3' }]} />
+                                                            <Text style={[styles.paraName, isParaSelected && styles.activeParaText, { fontSize: 10 }]} numberOfLines={1}>
+                                                                {para.name}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                    );
+                                }
+                                return null;
+                            })()}
+
+                            <NeonButton
+                                title={t('save_wallet').toUpperCase()}
+                                onPress={handleAddWallet}
+                                style={{ marginTop: 30 }}
+                            />
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
     header: {
         marginTop: 60,
         paddingHorizontal: 20,
         marginBottom: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     title: {
         fontSize: 32,
@@ -392,28 +963,52 @@ const styles = StyleSheet.create({
     },
     scroll: {
         paddingHorizontal: 20,
-        paddingBottom: 100,
+        paddingBottom: 40,
+    },
+    tabBar: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        marginHorizontal: 20,
+        borderRadius: 15,
+        padding: 4,
+        marginBottom: 25,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    tabButton: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    activeTabButton: {
+        // Active state handled by indicator
+    },
+    tabText: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+    },
+    activeTabText: {
+        color: COLORS.azmitaRed,
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 4,
+        width: 20,
+        height: 2,
+        backgroundColor: COLORS.azmitaRed,
+        borderRadius: 2,
     },
     section: {
-        marginBottom: 30,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
+        marginBottom: 35,
     },
     sectionTitle: {
         fontSize: 12,
         fontFamily: 'Orbitron_700Bold',
         color: COLORS.azmitaRed,
         letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
-    editAction: {
-        fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
-        color: COLORS.textGhost,
         textTransform: 'uppercase',
     },
     languageRow: {
@@ -446,42 +1041,6 @@ const styles = StyleSheet.create({
     infoCard: {
         padding: 16,
     },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    editContainer: {
-        gap: 15,
-    },
-    input: {
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        borderRadius: 8,
-        padding: 12,
-        color: '#FFFFFF',
-        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-        fontSize: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-    },
-    saveBtn: {
-        height: 45,
-    },
-    infoTextContainer: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    infoLabel: {
-        fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
-        color: COLORS.textSecondary,
-        marginBottom: 2,
-    },
-    infoValue: {
-        flex: 1,
-        fontSize: 14,
-        color: '#FFFFFF',
-        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    },
     balanceCard: {
         padding: 25,
         marginBottom: 20,
@@ -510,11 +1069,30 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: COLORS.azmitaRed,
     },
+    currencyBadge: {
+        backgroundColor: COLORS.azmitaRed,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        marginLeft: 10,
+    },
+    currencyBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+    },
     walletHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
         marginBottom: 15,
+    },
+    infoLabel: {
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        color: COLORS.textSecondary,
+        marginBottom: 2,
     },
     addressContainer: {
         flexDirection: 'row',
@@ -536,6 +1114,8 @@ const styles = StyleSheet.create({
     actionRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
         borderTopWidth: 1,
         borderTopColor: 'rgba(255,255,255,0.05)',
         paddingTop: 15,
@@ -551,44 +1131,21 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         letterSpacing: 1,
     },
-    networkCard: {
-        padding: 20,
+    editContainer: {
+        gap: 15,
     },
-    networkHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    polkadotLogo: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-    },
-    networkSelector: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    networkBtn: {
-        flex: 1,
-        paddingVertical: 10,
+    input: {
+        backgroundColor: 'rgba(0,0,0,0.3)',
         borderRadius: 8,
+        padding: 12,
+        color: '#FFFFFF',
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+        fontSize: 14,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.02)',
     },
-    networkBtnActive: {
-        borderColor: COLORS.azmitaRed,
-        backgroundColor: 'rgba(230, 57, 70, 0.1)',
-    },
-    networkBtnText: {
-        fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
-        color: COLORS.textSecondary,
-        letterSpacing: 1,
-    },
-    networkBtnTextActive: {
-        color: '#FFFFFF',
+    saveBtn: {
+        height: 45,
     },
     mnemonicSection: {
         marginTop: 15,
@@ -687,27 +1244,72 @@ const styles = StyleSheet.create({
         fontSize: 12,
         letterSpacing: 1,
     },
-    statusBadge: {
+    networkCard: {
+        padding: 20,
+        marginBottom: 20,
+    },
+    networkHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 255, 163, 0.1)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(0, 255, 163, 0.2)',
+        marginBottom: 15,
+        gap: 8,
+    },
+    networkStatus: {
+        color: '#00FFA3',
+        fontSize: 12,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
     },
     statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
         backgroundColor: '#00FFA3',
-        marginRight: 6,
     },
-    statusText: {
-        color: '#00FFA3',
-        fontSize: 10,
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    infoValue: {
+        flex: 1,
+        fontSize: 14,
+        color: '#FFFFFF',
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    rpcList: {
+        gap: 12,
+    },
+    rpcBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        padding: 16,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    rpcBtnActive: {
+        borderColor: COLORS.azmitaRed,
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+    },
+    rpcInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    rpcName: {
+        color: COLORS.textSecondary,
+        fontSize: 14,
         fontFamily: 'Inter_700Bold',
+    },
+    rpcNameActive: {
+        color: '#FFFFFF',
+    },
+    miniLogo: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
     },
     brandSection: {
         alignItems: 'center',
@@ -735,7 +1337,398 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_700Bold',
         marginTop: 5,
         textDecorationLine: 'underline',
-    }
+    },
+    networkCardWrapper: {
+        marginBottom: 10,
+    },
+    rpcActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    rpcMainAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        flex: 1,
+    },
+    rpcExpandBtn: {
+        padding: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderLeftWidth: 1,
+        borderLeftColor: 'rgba(255,255,255,0.05)',
+    },
+    activateBadge: {
+        backgroundColor: 'rgba(0, 255, 163, 0.1)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 255, 163, 0.3)',
+    },
+    activateText: {
+        color: '#00FFA3',
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 0.5,
+    },
+    rpcSubtext: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontFamily: 'Inter_400Regular',
+    },
+    tokenRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    networkDetails: {
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        padding: 15,
+        borderRadius: 15,
+        marginTop: -10,
+        paddingTop: 25,
+        zIndex: -1,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    detailLabel: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+        marginRight: 8,
+    },
+    detailValue: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+        marginTop: 4,
+        paddingLeft: 24,
+    },
+    switchNetworkBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.azmitaRed,
+        marginTop: 20,
+        paddingVertical: 12,
+        borderRadius: 10,
+    },
+    switchNetworkText: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 12,
+        marginLeft: 8,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: COLORS.cardBlack,
+        borderRadius: 25,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        width: '100%',
+        maxWidth: 500,
+        maxHeight: '90%',
+        alignSelf: 'center',
+    },
+    wizardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 30,
+    },
+    wizardTitle: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 18,
+    },
+    stepContainer: {
+        minHeight: 300,
+    },
+    stepIcon: {
+        alignSelf: 'center',
+        marginBottom: 20,
+    },
+    stepTitle: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 22,
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    stepDesc: {
+        color: COLORS.textSecondary,
+        fontFamily: 'Inter_400Regular',
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 30,
+    },
+    nextBtn: {
+        backgroundColor: COLORS.azmitaRed,
+        paddingVertical: 15,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    nextBtnText: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 14,
+    },
+    seedGridWizard: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+    },
+    wordBadgeWizard: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 8,
+        paddingVertical: 8,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '30%',
+        margin: 4,
+    },
+    wordIndexWizard: {
+        color: COLORS.azmitaRed,
+        fontSize: 9,
+        fontFamily: 'Orbitron_700Bold',
+    },
+    wordTextWizard: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontFamily: 'Inter_700Bold',
+    },
+    wizardInput: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 20,
+        color: '#FFFFFF',
+        fontSize: 24,
+        textAlign: 'center',
+        fontFamily: 'Orbitron_700Bold',
+        marginBottom: 30,
+        borderWidth: 1,
+        borderColor: COLORS.azmitaRed,
+    },
+    finalizeBtn: {
+        backgroundColor: '#00FFA3', // Success green for final step
+        paddingVertical: 18,
+        borderRadius: 15,
+        alignItems: 'center',
+        shadowColor: '#00FFA3',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    textInput: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 15,
+        color: '#FFFFFF',
+        fontFamily: 'Inter_400Regular',
+        fontSize: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(230, 57, 70, 0.2)',
+        textAlignVertical: 'top',
+    },
+    networkBadgeSmall: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 255, 163, 0.05)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 255, 163, 0.2)',
+    },
+    networkDotSmall: {
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
+        backgroundColor: '#00FFA3',
+        marginRight: 5,
+    },
+    networkTextSmall: {
+        color: '#00FFA3',
+        fontSize: 8,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 0.5,
+    },
+    // Multi-Wallet Styles
+    walletCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 15,
+    },
+    activeWalletCard: {
+        borderColor: 'rgba(0, 255, 163, 0.3)',
+        backgroundColor: 'rgba(0, 255, 163, 0.05)',
+    },
+    walletListInfo: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    walletListName: {
+        color: '#FFFFFF',
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 14,
+    },
+    walletListAddr: {
+        color: COLORS.textSecondary,
+        fontFamily: 'Inter_400Regular',
+        fontSize: 10,
+        marginTop: 2,
+    },
+    walletListNetwork: {
+        color: COLORS.azmitaRed,
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 8,
+        marginTop: 4,
+        letterSpacing: 0.5,
+    },
+    activateBtnSmall: {
+        backgroundColor: 'rgba(0, 255, 163, 0.1)',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 255, 163, 0.3)',
+    },
+    activateBtnTextSmall: {
+        color: '#00FFA3',
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+    },
+    deleteBtnSmall: {
+        marginLeft: 8,
+        padding: 6,
+    },
+    inputLabel: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+        marginBottom: 8,
+    },
+    networkPicker: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 10,
+    },
+    networkOption: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        marginRight: 10,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    activeNetworkOption: {
+        borderColor: COLORS.azmitaRed,
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+    },
+    networkOptionText: {
+        color: COLORS.textSecondary,
+        fontFamily: 'Inter_700Bold',
+        fontSize: 10,
+    },
+    activeNetworkOptionText: {
+        color: '#FFFFFF',
+    },
+    // Parachain Styles
+    parachainSection: {
+        marginTop: 20,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    parachainTitle: {
+        color: COLORS.azmitaRed,
+        fontSize: 10,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+        marginBottom: 12,
+    },
+    paraGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    paraCard: {
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 12,
+        padding: 8,
+        width: '31%', // 3 per row roughly
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+        alignItems: 'center',
+    },
+    paraCardActive: {
+        borderColor: 'rgba(0, 255, 163, 0.4)',
+        backgroundColor: 'rgba(0, 255, 163, 0.05)',
+    },
+    paraDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.textSecondary,
+        marginBottom: 6,
+    },
+    paraName: {
+        color: '#FFFFFF',
+        fontFamily: 'Inter_700Bold',
+        fontSize: 11,
+    },
+    activeParaText: {
+        color: '#00FFA3',
+    },
+    paraSymbol: {
+        color: COLORS.textSecondary,
+        fontFamily: 'Orbitron_400Regular',
+        fontSize: 8,
+        marginTop: 2,
+    },
+    networkBadgeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    paraBadge: {
+        backgroundColor: '#000000',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    paraBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 8,
+        fontFamily: 'Orbitron_900Black',
+        letterSpacing: 0.5,
+    },
 });
 
 export default SettingsScreen;
