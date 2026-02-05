@@ -22,6 +22,7 @@ interface PinPadModalProps {
     onClose: () => void;
     title?: string;
     subtitle?: string;
+    onForgotPin?: () => void;
 }
 
 export const PinPadModal: React.FC<PinPadModalProps> = ({
@@ -30,8 +31,8 @@ export const PinPadModal: React.FC<PinPadModalProps> = ({
     onSuccess,
     onClose,
     title,
-    subtitle
-    subtitle
+    subtitle,
+    onForgotPin
 }) => {
     const { t } = useTranslation();
     const [pin, setPin] = useState('');
@@ -230,6 +231,13 @@ export const PinPadModal: React.FC<PinPadModalProps> = ({
                             </View>
                         ))}
                     </View>
+
+                    {/* Forgot PIN Button - Only in verify mode */}
+                    {mode === 'verify' && onForgotPin && (
+                        <TouchableOpacity style={styles.forgotBtn} onPress={onForgotPin}>
+                            <Text style={styles.forgotText}>{t('forgot_pin')}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </Modal>
@@ -321,5 +329,19 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         fontSize: 18,
         fontFamily: 'Orbitron_700Bold',
+    },
+    forgotBtn: {
+        marginTop: 30,
+        padding: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+    },
+    forgotText: {
+        color: COLORS.azmitaRed,
+        fontFamily: 'Inter_700Bold',
+        fontSize: 14,
+        textDecorationLine: 'underline',
+        letterSpacing: 0.5,
     }
 });

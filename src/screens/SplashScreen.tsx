@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -71,10 +71,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             <Animated.View style={[styles.mainGlow, glowStyle]} />
 
             <Animated.View style={[styles.content, logoStyle]}>
-                <Text style={styles.lionIcon}>🦁</Text>
+                <Image source={require('../../assets/logo.png')} style={styles.lionIcon} resizeMode="contain" />
                 <Text style={styles.title}>AZMITA</Text>
                 <View style={styles.divider} />
-                <Text style={styles.subtitle}>PROTOCOL</Text>
+                <Text style={styles.subtitle}>Tokenizer</Text>
             </Animated.View>
         </View>
     );
@@ -90,10 +90,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     lionIcon: {
-        fontSize: 100,
-        textShadowColor: COLORS.azmitaRed,
-        textShadowOffset: { width: 0, height: 0 },
-        textShadowRadius: 30,
+        width: 120,
+        height: 120,
+        shadowColor: COLORS.azmitaRed,
+        shadowOffset: { width: 0, height: 0 },
+        shadowRadius: 30,
+        shadowOpacity: 1,
     },
     title: {
         fontFamily: 'Orbitron_900Black',

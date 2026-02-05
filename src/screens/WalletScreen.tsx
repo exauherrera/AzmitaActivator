@@ -12,7 +12,7 @@ import {
     Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import QRCode from 'react-native-qrcode-svg';
@@ -59,7 +59,30 @@ const WalletScreen = () => {
 
     // Security State
     const [pinModalVisible, setPinModalVisible] = useState(false);
-    const [pendingAction, setPendingAction] = useState<() => Promise<void> | void>();
+
+    // Confirmation State
+    const [confirmVisible, setConfirmVisible] = useState(false);
+    const [countdown, setCountdown] = useState(20);
+    const [timerActive, setTimerActive] = useState(false);
+
+    // Timer Logic
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (confirmVisible && timerActive) {
+            setCountdown(20);
+            interval = setInterval(() => {
+                setCountdown((prev) => {
+                    if (prev <= 1) {
+                        setConfirmVisible(false); // Auto-cancel
+                        setTimerActive(false);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [confirmVisible, timerActive]);
 
     // Transactions
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -178,6 +201,12 @@ const WalletScreen = () => {
             );
 
             if (result.success) {
+                // Clear form fields for next transaction
+                setRecipientAddress('');
+                setSendAmount('');
+                setEstimatedFee('0.00');
+                setFeeFloat(0);
+
                 Alert.alert(
                     '✅ ' + t('transaction_sent'),
                     `Hash: ${result.txHash.substring(0, 10)}...`,
@@ -189,9 +218,8 @@ const WalletScreen = () => {
                         { text: t('ok') },
                     ]
                 );
-                setSendVisible(false);
-                setRecipientAddress('');
-                setSendAmount('');
+
+                // Update balance and transactions
                 fetchBalance(walletAddress);
                 fetchTransactions(walletAddress);
             } else {
@@ -218,23 +246,14 @@ const WalletScreen = () => {
             return;
         }
 
-        const actionToExecute = async () => {
-            Alert.alert(
-                t('confirm_send'),
-                t('confirm_send_body', { amount: sendAmount, symbol: tokenSymbol, address: recipientAddress.substring(0, 10) }),
-                [
-                    { text: t('cancel'), style: 'cancel' },
-                    { text: t('confirm'), onPress: executeSendTransaction }
-                ]
-            );
-        };
-
+        // 1. Check PIN first if security enabled
         const shouldAskPin = await securityService.shouldAskPin('send_funds');
         if (shouldAskPin) {
-            setPendingAction(() => actionToExecute);
             setPinModalVisible(true);
         } else {
-            await actionToExecute();
+            // 2. No PIN needed, go valid confirm
+            setConfirmVisible(true);
+            setTimerActive(true);
         }
     };
 
@@ -431,6 +450,12 @@ const WalletScreen = () => {
                                     <View style={styles.inputHeader}>
                                         <Text style={styles.inputLabel}>{t('recipient_address')}</Text>
                                         <View style={{ flexDirection: 'row', gap: 10 }}>
+                                            {recipientAddress.length > 0 && (
+                                                <TouchableOpacity onPress={() => setRecipientAddress('')} style={[styles.qrButtonSmall, { backgroundColor: 'rgba(230, 57, 70, 0.1)' }]}>
+                                                    <MaterialCommunityIcons name="broom" size={16} color={COLORS.azmitaRed} />
+                                                    <Text style={[styles.qrButtonTextSmall, { color: COLORS.azmitaRed }]}>CLEAR</Text>
+                                                </TouchableOpacity>
+                                            )}
                                             <TouchableOpacity onPress={async () => {
                                                 const content = await Clipboard.getStringAsync();
                                                 if (content) {
@@ -462,9 +487,16 @@ const WalletScreen = () => {
                                 <GlassCard style={styles.amountCard}>
                                     <View style={styles.amountHeader}>
                                         <Text style={styles.inputLabel}>{t('amount')}</Text>
-                                        <TouchableOpacity style={styles.maxBtnSmall} onPress={handleSendMax}>
-                                            <Text style={styles.maxTextSmall}>MAX</Text>
-                                        </TouchableOpacity>
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            {sendAmount.length > 0 && (
+                                                <TouchableOpacity style={[styles.maxBtnSmall, { backgroundColor: 'rgba(230, 57, 70, 0.1)', borderColor: COLORS.azmitaRed }]} onPress={() => setSendAmount('')}>
+                                                    <MaterialCommunityIcons name="broom" size={14} color={COLORS.azmitaRed} />
+                                                </TouchableOpacity>
+                                            )}
+                                            <TouchableOpacity style={styles.maxBtnSmall} onPress={handleSendMax}>
+                                                <Text style={styles.maxTextSmall}>MAX</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                     <View style={styles.amountInputRow}>
                                         <TextInput
@@ -535,17 +567,21 @@ const WalletScreen = () => {
                 <PinPadModal
                     visible={pinModalVisible}
                     mode="verify"
-                    onSuccess={(pin) => {
-                        // securityService handles verification if mode='verify'?? 
-                        // Wait, in PinPadModal I implemented internal verification logic for 'verify'.
-                        // So onSuccess is only called if valid.
-                        setPinModalVisible(false);
-                        if (pendingAction) pendingAction();
-                        setPendingAction(undefined);
+                    onSuccess={async (pin) => {
+                        // VERIFY PIN HERE
+                        if (pin) {
+                            const isValid = await securityService.verifyPin(pin);
+                            if (isValid) {
+                                setPinModalVisible(false);
+                                setConfirmVisible(true);
+                                setTimerActive(true);
+                            } else {
+                                Alert.alert(t('error'), t('pin_incorrect'));
+                            }
+                        }
                     }}
                     onClose={() => {
                         setPinModalVisible(false);
-                        setPendingAction(undefined);
                     }}
                 />
             </View>

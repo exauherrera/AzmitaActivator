@@ -6,14 +6,18 @@ export interface SecurityConfig {
     azmit_asset: boolean;
     delete_wallet: boolean;
     security_enabled: boolean;
+    access_config: boolean;
+    view_audit: boolean;
 }
 
 const DEFAULT_CONFIG: SecurityConfig = {
     send_funds: true,
     view_seed: true,
     azmit_asset: true,
-    delete_wallet: false,
-    security_enabled: false
+    delete_wallet: true,
+    security_enabled: false,
+    access_config: false,
+    view_audit: false,
 };
 
 const PIN_KEY = 'user-security-pin';
@@ -23,14 +27,29 @@ class SecurityService {
     async setPin(pin: string): Promise<boolean> {
         try {
             await AsyncStorage.setItem(PIN_KEY, pin);
-            // Auto-enable security if setting a PIN for the first time
-            const currentConfig = await this.getConfig();
-            if (!currentConfig.security_enabled) {
-                await this.updateConfig({ ...currentConfig, security_enabled: true });
-            }
+            // Enable security globally when PIN is set
+            await this.updateConfig({
+                ...DEFAULT_CONFIG,
+                security_enabled: true
+            });
             return true;
-        } catch (e) {
-            console.error('Error setting PIN:', e);
+        } catch (error) {
+            console.error('Error setting PIN:', error);
+            return false;
+        }
+    }
+
+    async resetPin(): Promise<boolean> {
+        try {
+            await AsyncStorage.removeItem(PIN_KEY);
+            // Disable security on reset
+            await this.updateConfig({
+                ...DEFAULT_CONFIG,
+                security_enabled: false
+            });
+            return true;
+        } catch (error) {
+            console.error('Error resetting PIN:', error);
             return false;
         }
     }
