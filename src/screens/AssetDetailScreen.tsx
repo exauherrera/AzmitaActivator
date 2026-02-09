@@ -126,22 +126,38 @@ const AssetDetailScreen = ({ route, navigation }: any) => {
                 </GlassCard>
 
                 <View style={styles.statusSection}>
-                    <GlassCard style={[styles.statusCard, isGenuine && styles.genuineCard]}>
-                        <View style={styles.statusHeader}>
-                            <Ionicons
-                                name={isGenuine ? "shield-checkmark" : "warning"}
-                                size={24}
-                                color={isGenuine ? COLORS.success : COLORS.azmitaRed}
-                            />
-                            <Text style={[styles.statusTitle, { color: isGenuine ? COLORS.success : COLORS.azmitaRed }]}>
-                                {isGenuine ? t('sun_verified') : 'AUTHENTICITY FAILED'}
-                            </Text>
+                    <GlassCard style={styles.statusCompactCard}>
+                        <View style={styles.statusItemCompact}>
+                            <View style={[styles.statusIconCircle, isGenuine ? styles.successGlow : styles.errorGlow]}>
+                                <Ionicons
+                                    name={isGenuine ? "shield-checkmark" : "warning"}
+                                    size={20}
+                                    color={isGenuine ? COLORS.success : COLORS.azmitaRed}
+                                />
+                            </View>
+                            <View style={styles.statusTextContainer}>
+                                <Text style={[styles.statusLabelSmall, { color: isGenuine ? COLORS.success : COLORS.azmitaRed }]}>
+                                    {isGenuine ? t('sun_verified') : 'AUTHENTICITY FAILED'}
+                                </Text>
+                                <Text style={styles.statusValueSmall}>
+                                    {isGenuine ? 'FIRMA CRYPTO VÁLIDA' : 'ERROR DE FIRMA'}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={styles.statusDesc}>
-                            {isGenuine
-                                ? 'El chip ha generado una firma SUN válida y el Gemelo Digital coincide en Polkadot.'
-                                : 'ADVERTENCIA: La firma del chip no coincide. Este objeto podría ser una réplica.'}
-                        </Text>
+
+                        <View style={styles.vDivider} />
+
+                        <View style={styles.statusItemCompact}>
+                            <View style={[styles.statusIconCircle, styles.lockedGlow]}>
+                                <Ionicons name="lock-closed" size={20} color={COLORS.azmitaRed} />
+                            </View>
+                            <View style={styles.statusTextContainer}>
+                                <Text style={[styles.statusLabelSmall, { color: COLORS.azmitaRed }]}>
+                                    {t('phygital_lock')}
+                                </Text>
+                                <Text style={styles.statusValueSmall}>LINK ACTIVO</Text>
+                            </View>
+                        </View>
                     </GlassCard>
                 </View>
 
@@ -393,40 +409,69 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         color: COLORS.azmitaRed,
     },
-    statusSection: {
-        marginBottom: 32,
-    },
-    statusCard: {
-        padding: 20,
-        borderColor: 'rgba(255,255,255,0.1)',
-        borderWidth: 1,
-    },
-    genuineCard: {
-        borderColor: 'rgba(0, 255, 163, 0.2)',
-    },
-    statusHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginBottom: 8,
-    },
-    statusTitle: {
-        fontSize: 14,
-        fontFamily: 'Orbitron_700Bold',
-        letterSpacing: 1,
-    },
-    statusDesc: {
-        fontSize: 12,
-        color: COLORS.textSecondary,
-        lineHeight: 18,
-        fontFamily: 'Inter_400Regular',
-    },
     itemCategory: {
         color: COLORS.textPrimary,
         fontSize: 14,
         fontWeight: '700',
         letterSpacing: 1,
         textTransform: 'uppercase',
+    },
+    statusSection: {
+        marginBottom: 32,
+    },
+    statusCompactCard: {
+        flexDirection: 'row',
+        padding: 15,
+        alignItems: 'center',
+        justifyContent: 'space-around',
+    },
+    statusItemCompact: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1,
+    },
+    statusIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    successGlow: {
+        borderColor: 'rgba(0, 255, 163, 0.3)',
+        backgroundColor: 'rgba(0, 255, 163, 0.05)',
+    },
+    errorGlow: {
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+    },
+    lockedGlow: {
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+    },
+    statusTextContainer: {
+        flex: 1,
+    },
+    statusLabelSmall: {
+        fontSize: 9,
+        fontFamily: 'Orbitron_700Bold',
+        letterSpacing: 1,
+    },
+    statusValueSmall: {
+        fontSize: 10,
+        color: '#FFFFFF',
+        fontFamily: 'Inter_700Bold',
+        marginTop: 2,
+    },
+    vDivider: {
+        width: 1,
+        height: '80%',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        marginHorizontal: 10,
     },
     ownerRow: {
         flexDirection: 'row',

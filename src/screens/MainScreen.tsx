@@ -302,7 +302,7 @@ const MainScreen = () => {
                                 </View>
                             </ScrollView>
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
+                            <View style={styles.modalFooterActions}>
                                 <TouchableOpacity
                                     onPress={async () => {
                                         Alert.alert(
@@ -325,31 +325,19 @@ const MainScreen = () => {
                                             ]
                                         );
                                     }}
-                                    style={{
-                                        flex: 1,
-                                        marginRight: 10,
-                                        backgroundColor: 'rgba(230, 57, 70, 0.1)',
-                                        borderColor: COLORS.azmitaRed,
-                                        borderWidth: 1,
-                                        borderRadius: 12,
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        paddingVertical: 12
-                                    }}
+                                    style={styles.wipeBtn}
                                 >
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Ionicons name="trash-outline" size={16} color={COLORS.azmitaRed} />
-                                        <Text style={{ color: COLORS.azmitaRed, fontFamily: 'Orbitron_700Bold', fontSize: 12 }}>FORMATEAR</Text>
-                                    </View>
+                                    <Ionicons name="trash-outline" size={18} color={COLORS.azmitaRed} />
+                                    <Text style={styles.wipeBtnText}>FORMATEAR</Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <NeonButton
-                                title={t('confirm_write') || 'AZMITAR'}
-                                onPress={confirmAzmitar}
-                                style={styles.confirmBtn}
-                                titleStyle={{ fontSize: 14 }}
-                            />
+                                <NeonButton
+                                    title={t('confirm_write') || 'AZMITAR'}
+                                    onPress={confirmAzmitar}
+                                    style={styles.confirmBtn}
+                                    titleStyle={{ fontSize: 13 }}
+                                />
+                            </View>
                         </View>
                     </View>
                 </Modal>
@@ -556,9 +544,32 @@ const styles = StyleSheet.create({
         fontFamily: 'Orbitron_700Bold',
         letterSpacing: 0.5,
     },
+    modalFooterActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginTop: 10,
+    },
+    wipeBtn: {
+        backgroundColor: 'rgba(230, 57, 70, 0.05)',
+        borderColor: 'rgba(230, 57, 70, 0.3)',
+        borderWidth: 1,
+        borderRadius: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    wipeBtnText: {
+        color: COLORS.azmitaRed,
+        fontFamily: 'Orbitron_700Bold',
+        fontSize: 10,
+        letterSpacing: 1,
+    },
     confirmBtn: {
-        marginTop: 20,
-        marginBottom: 20,
+        flex: 1,
     },
     networkBadge: {
         flexDirection: 'row',

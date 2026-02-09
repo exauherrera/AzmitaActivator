@@ -458,25 +458,20 @@ const WalletScreen = () => {
                                 <GlassCard style={styles.recipientCard}>
                                     <View style={styles.inputHeader}>
                                         <Text style={styles.inputLabel}>{t('recipient_address')}</Text>
-                                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                                        <View style={styles.fieldToolbar}>
                                             {recipientAddress.length > 0 && (
-                                                <TouchableOpacity onPress={() => setRecipientAddress('')} style={[styles.qrButtonSmall, { backgroundColor: 'rgba(230, 57, 70, 0.1)' }]}>
+                                                <TouchableOpacity onPress={() => setRecipientAddress('')} style={styles.toolbarBtn}>
                                                     <MaterialCommunityIcons name="broom" size={16} color={COLORS.azmitaRed} />
-                                                    <Text style={[styles.qrButtonTextSmall, { color: COLORS.azmitaRed }]}>CLEAR</Text>
                                                 </TouchableOpacity>
                                             )}
                                             <TouchableOpacity onPress={async () => {
                                                 const content = await Clipboard.getStringAsync();
-                                                if (content) {
-                                                    setRecipientAddress(content);
-                                                }
-                                            }} style={[styles.qrButtonSmall, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                                                if (content) setRecipientAddress(content);
+                                            }} style={styles.toolbarBtn}>
                                                 <Ionicons name="clipboard-outline" size={16} color={COLORS.textSecondary} />
-                                                <Text style={[styles.qrButtonTextSmall, { color: COLORS.textSecondary }]}>PASTE</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => setQrScannerVisible(true)} style={styles.qrButtonSmall}>
+                                            <TouchableOpacity onPress={() => setQrScannerVisible(true)} style={[styles.toolbarBtn, styles.accentToolbarBtn]}>
                                                 <Ionicons name="qr-code-outline" size={16} color={COLORS.azmitaRed} />
-                                                <Text style={styles.qrButtonTextSmall}>SCAN QR</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -496,13 +491,13 @@ const WalletScreen = () => {
                                 <GlassCard style={styles.amountCard}>
                                     <View style={styles.amountHeader}>
                                         <Text style={styles.inputLabel}>{t('amount')}</Text>
-                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <View style={styles.fieldToolbar}>
                                             {sendAmount.length > 0 && (
-                                                <TouchableOpacity style={[styles.maxBtnSmall, { backgroundColor: 'rgba(230, 57, 70, 0.1)', borderColor: COLORS.azmitaRed }]} onPress={() => setSendAmount('')}>
+                                                <TouchableOpacity style={styles.toolbarBtn} onPress={() => setSendAmount('')}>
                                                     <MaterialCommunityIcons name="broom" size={14} color={COLORS.azmitaRed} />
                                                 </TouchableOpacity>
                                             )}
-                                            <TouchableOpacity style={styles.maxBtnSmall} onPress={handleSendMax}>
+                                            <TouchableOpacity style={[styles.toolbarBtn, styles.accentToolbarBtn]} onPress={handleSendMax}>
                                                 <Text style={styles.maxTextSmall}>MAX</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -975,6 +970,7 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         backgroundColor: 'rgba(230, 57, 70, 0.05)',
         borderColor: 'rgba(230, 57, 70, 0.2)',
+        borderWidth: 1,
     },
     amountHeader: {
         flexDirection: 'row',
@@ -988,28 +984,36 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 10,
     },
+    fieldToolbar: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 8,
+        padding: 4,
+        gap: 4,
+    },
+    toolbarBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    accentToolbarBtn: {
+        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+        borderColor: 'rgba(230, 57, 70, 0.2)',
+        borderWidth: 1,
+    },
     qrButtonSmall: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(230, 57, 70, 0.1)',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
         gap: 4,
     },
-    qrButtonTextSmall: {
-        color: COLORS.azmitaRed,
-        fontSize: 10,
-        fontFamily: 'Orbitron_700Bold',
-    },
-    maxBtnSmall: {
-        backgroundColor: COLORS.azmitaRed,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
     maxTextSmall: {
-        color: '#FFFFFF',
+        color: COLORS.azmitaRed,
         fontSize: 10,
         fontFamily: 'Orbitron_700Bold',
     },

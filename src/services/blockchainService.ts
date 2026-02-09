@@ -185,6 +185,41 @@ class BlockchainService {
         };
     }
 
+    async azmitarAsset(ownerAddress: string, metadata: any) {
+        console.log(`[BLOCKCHAIN] Azmitando asset for: ${ownerAddress}`);
+
+        // Rule 4: Gas-less experience (simulated)
+        return await this.executeGaslessTx(async () => {
+            // Simulate processing time
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            const azmitId = `AZM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+            const txHash = `0x${Math.random().toString(16).substring(2, 42)}`;
+
+            const chainOfCustody = [
+                {
+                    date: Date.now() - (60 * 60 * 24 * 7 * 1000), // 7 days ago
+                    event: 'FACTORY_PROVISIONING',
+                    owner: 'Azmita Manufacturer',
+                    status: 'VERIFIED'
+                },
+                {
+                    date: Date.now(),
+                    event: 'VINCULATION',
+                    owner: ownerAddress,
+                    status: 'LOCKED'
+                }
+            ];
+
+            return {
+                success: true,
+                azmitId,
+                txHash,
+                chainOfCustody
+            };
+        });
+    }
+
     async getBalance(address: string) {
         try {
             console.log(`[BLOCKCHAIN] Checking balance for: ${address.substring(0, 10)}...`);
