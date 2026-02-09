@@ -69,6 +69,15 @@ const NfcInspectorScreen = () => {
     const [pinModalVisible, setPinModalVisible] = useState(false);
     const [pendingAuditAccess, setPendingAuditAccess] = useState(false);
 
+    // New States for Prepare/Wipe and Clone Flow
+    const [isPrepareModalVisible, setIsPrepareModalVisible] = useState(false);
+    const [cloneStep, setCloneStep] = useState<'SEARCHING' | 'READY_TO_WRITE' | 'WRITING' | 'SUCCESS'>('SEARCHING');
+    const [cloneStatusText, setCloneStatusText] = useState('');
+
+    // Animation Values
+    const sonarScale = useSharedValue(1);
+    const sonarOpacity = useSharedValue(0.5);
+
     useFocusEffect(
         React.useCallback(() => {
             loadSavedDevices();
@@ -192,44 +201,132 @@ const NfcInspectorScreen = () => {
         );
     };
 
-    const handleCloneDevice = (device: SavedDevice) => {
-        setSelectedDevice(device);
-        setCloneModalVisible(true);
+    // Sonar Animation
+    useEffect(() => {
+        if (cloneStep === 'SEARCHING') {
+            sonarScale.value = withRepeat(
+                withSequence(
+                    withTiming(2, { duration: 1500, easing: Easing.out(Easing.ease) }),
+                    withTiming(1, { duration: 0 })
+                ),
+                -1
+            );
+            sonarOpacity.value = withRepeat(
+                withSequence(
+                    withTiming(0, { duration: 1500 }),
+                    withTiming(0.5, { duration: 0 })
+                ),
+                -1
+            );
+        } else {
+            sonarScale.value = 1;
+            sonarOpacity.value = 0.5;
+        }
+    }, [cloneStep]);
+
+    const sonarStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ scale: sonarScale.value }],
+            opacity: sonarOpacity.value,
+        };
+    });
+
+    const handlePrepareDevicePress = () => {
+        setIsPrepareModalVisible(true);
     };
 
-    const executeClone = async () => {
-        if (!selectedDevice) return;
-
+    const executeWipe = async () => {
+        setIsPrepareModalVisible(false);
+        setLoading(true);
         try {
-            const clonedDevice: SavedDevice = {
-                ...selectedDevice,
-                id: `${selectedDevice.id}-clone-${Date.now()}`,
-                name: `${selectedDevice.name} (Clone)`,
-                timestamp: Date.now(),
-                clonedFrom: selectedDevice.id,
-                clonedAt: Date.now(),
-                cloneCount: 0
-            };
-
-            // Increment clone count on original
-            const updatedDevices = savedDevices.map(d =>
-                d.id === selectedDevice.id
-                    ? { ...d, cloneCount: (d.cloneCount || 0) + 1 }
-                    : d
-            );
-            updatedDevices.unshift(clonedDevice);
-
-            await AsyncStorage.setItem('azmita-saved-devices', JSON.stringify(updatedDevices));
-            setSavedDevices(updatedDevices);
-
-            await addAuditEntry('device_cloned', clonedDevice.id, clonedDevice.name, `Cloned from: ${selectedDevice.name}`);
-
-            setCloneModalVisible(false);
-            Alert.alert(t('success'), t('clone_success'));
-        } catch (e) {
-            Alert.alert(t('error'), 'Error al clonar dispositivo');
+            const success = await nfcService.eraseTag();
+            if (success) {
+                Alert.alert(t('success'), 'Dispositivo borrado y preparado correctamente.');
+                await addAuditEntry('device_deleted', 'ERASED', 'Device Wiped/Prepared'); // Or new action type
+            } else {
+                Alert.alert(t('error'), 'No se pudo borrar el dispositivo.');
+            }
+        } catch (error) {
+            Alert.alert(t('error'), 'Error al borrar dispositivo: ' + (error as any).message);
+        } finally {
+            setLoading(false);
         }
     };
+
+    const handleCloneDevice = (device: SavedDevice) => {
+        setSelectedDevice(device);
+        setCloneStep('SEARCHING');
+        setCloneStatusText(t('instruction_scan_new') || 'Acerca el NUEVO dispositivo vacío...');
+        setCloneModalVisible(true);
+        startCloneScan();
+    };
+
+    const startCloneScan = async () => {
+        try {
+            // Need to scan for a writable tag
+            const tag = await nfcService.readRawTag(); // Should be simple scan first
+            if (tag) {
+                setCloneStep('READY_TO_WRITE');
+                setCloneStatusText('Dispositivo detectado. Listo para clonar.');
+            }
+        } catch (e) {
+            // If cancelled or error, just stay in searching or close
+            console.log('Clone scan error', e);
+        }
+    };
+
+    const executeCloneWrite = async () => {
+        if (!selectedDevice) return;
+        setCloneStep('WRITING');
+        setCloneStatusText('Escribiendo datos...');
+
+        try {
+            // Write NDEF message from original device
+            // If original has no NDEF, we might just write empty or skip
+            const messageToWrite = selectedDevice.ndefMessage || '';
+            const success = await nfcService.writeNdef(messageToWrite);
+
+            if (success) {
+                setCloneStep('SUCCESS');
+
+                // Save the clone record internally
+                const clonedDevice: SavedDevice = {
+                    ...selectedDevice,
+                    id: `${selectedDevice.id}-clone-${Date.now()}`, // We don't know real UID unless we read again, but for record keeping use virtual ID
+                    name: `${selectedDevice.name} (Clone)`,
+                    timestamp: Date.now(),
+                    clonedFrom: selectedDevice.id,
+                    clonedAt: Date.now(),
+                    cloneCount: 0
+                };
+
+                // Increment clone count on original
+                const updatedDevices = savedDevices.map(d =>
+                    d.id === selectedDevice.id
+                        ? { ...d, cloneCount: (d.cloneCount || 0) + 1 }
+                        : d
+                );
+                updatedDevices.unshift(clonedDevice);
+
+                await AsyncStorage.setItem('azmita-saved-devices', JSON.stringify(updatedDevices));
+                setSavedDevices(updatedDevices);
+
+                await addAuditEntry('device_cloned', clonedDevice.id, clonedDevice.name, `Cloned from: ${selectedDevice.name}`);
+
+                // Close modal after delay? or let user close
+            } else {
+                Alert.alert(t('error'), 'Escritura fallida.');
+                setCloneStep('READY_TO_WRITE');
+            }
+        } catch (e) {
+            Alert.alert(t('error'), 'Error al escribir en dispositivo: ' + (e as any).message);
+            setCloneStep('READY_TO_WRITE');
+        }
+    };
+
+    // Removed old executeClone to replace with new logic inside render or above
+    // const executeClone = async () => { ... } // Replaced by executeCloneWrite logic integrated with UI
+
 
     const handleDeleteDevice = async (deviceId: string) => {
         const device = savedDevices.find(d => d.id === deviceId);
@@ -386,6 +483,12 @@ const NfcInspectorScreen = () => {
                                 <Ionicons name="refresh-outline" size={20} color={COLORS.azmitaRed} />
                                 <Text style={[styles.actionText, { color: COLORS.azmitaRed }]}>{t('scan_tag')}</Text>
                             </TouchableOpacity>
+
+                            <TouchableOpacity onPress={() => setIsPrepareModalVisible(true)} style={styles.actionBtn}>
+                                <Ionicons name="trash-bin-outline" size={20} color={COLORS.textSecondary} />
+                                <Text style={[styles.actionText, { color: COLORS.textSecondary }]}>{t('prepare_device') || 'PREPARAR'}</Text>
+                            </TouchableOpacity>
+
                         </View>
                     </View>
                 )}
@@ -446,35 +549,91 @@ const NfcInspectorScreen = () => {
                 visible={cloneModalVisible}
                 animationType="slide"
                 transparent={true}
-                onRequestClose={() => setCloneModalVisible(false)}
+                onRequestClose={() => {
+                    if (cloneStep === 'SUCCESS' || cloneStep === 'SEARCHING') {
+                        setCloneModalVisible(false);
+                    }
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>{t('clone_device')}</Text>
-                            <TouchableOpacity onPress={() => setCloneModalVisible(false)}>
+                            <TouchableOpacity onPress={() => {
+                                setCloneModalVisible(false);
+                                nfcService.abort();
+                            }}>
                                 <Ionicons name="close" size={24} color={COLORS.textSecondary} />
                             </TouchableOpacity>
                         </View>
 
-                        {selectedDevice && (
-                            <>
-                                <Text style={styles.configLabel}>{t('original_device')}</Text>
-                                <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: 15, borderRadius: 12, marginBottom: 20 }}>
-                                    <Text style={{ color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontSize: 16 }}>{selectedDevice.name}</Text>
-                                    <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginTop: 5 }}>UID: {selectedDevice.id}</Text>
+                        {cloneStep === 'SEARCHING' && (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <View style={{ width: 100, height: 100, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+                                    <Animated.View style={[
+                                        {
+                                            position: 'absolute',
+                                            width: 100,
+                                            height: 100,
+                                            borderRadius: 50,
+                                            backgroundColor: 'rgba(230, 57, 70, 0.3)',
+                                            borderColor: COLORS.azmitaRed,
+                                            borderWidth: 1
+                                        },
+                                        sonarStyle
+                                    ]} />
+                                    <Ionicons name="radio-outline" size={40} color={COLORS.azmitaRed} />
                                 </View>
-
-                                <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginBottom: 20, lineHeight: 20 }}>
-                                    {t('clone_instructions')}
+                                <Text style={{ color: '#FFFFFF', fontFamily: 'Orbitron_700Bold', fontSize: 16, textAlign: 'center', marginBottom: 10 }}>
+                                    BUSCANDO DISPOSITIVO
                                 </Text>
+                                <Text style={{ color: COLORS.textSecondary, textAlign: 'center' }}>
+                                    {cloneStatusText}
+                                </Text>
+                            </View>
+                        )}
 
+                        {cloneStep === 'READY_TO_WRITE' && (
+                            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                                <Ionicons name="checkmark-circle-outline" size={60} color="#00FFA3" style={{ marginBottom: 20 }} />
+                                <Text style={{ color: '#FFFFFF', fontFamily: 'Orbitron_700Bold', fontSize: 16, textAlign: 'center', marginBottom: 20 }}>
+                                    DISPOSITIVO DETECTADO
+                                </Text>
+                                <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 30 }}>
+                                    Todo listo para clonar los datos de "{selectedDevice?.name}" al nuevo dispositivo.
+                                </Text>
                                 <NeonButton
-                                    title={t('clone_confirm')}
-                                    onPress={executeClone}
-                                    style={styles.saveBtn}
+                                    title="CLONAR AL NUEVO DISPOSITIVO"
+                                    onPress={executeCloneWrite}
+                                    style={{ width: '100%' }}
                                 />
-                            </>
+                            </View>
+                        )}
+
+                        {cloneStep === 'WRITING' && (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <ActivityIndicator size="large" color={COLORS.azmitaRed} style={{ marginBottom: 20 }} />
+                                <Text style={{ color: '#FFFFFF', fontFamily: 'Orbitron_700Bold', fontSize: 16 }}>
+                                    ESCRIBIENDO...
+                                </Text>
+                            </View>
+                        )}
+
+                        {cloneStep === 'SUCCESS' && (
+                            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                                <Ionicons name="checkmark-done-circle" size={80} color="#00FFA3" style={{ marginBottom: 20 }} />
+                                <Text style={{ color: '#FFFFFF', fontFamily: 'Orbitron_700Bold', fontSize: 18, marginBottom: 10 }}>
+                                    ¡CLONACIÓN EXITOSA!
+                                </Text>
+                                <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 30 }}>
+                                    Los datos han sido transferidos y el registro guardado.
+                                </Text>
+                                <NeonButton
+                                    title="FINALIZAR"
+                                    onPress={() => setCloneModalVisible(false)}
+                                    style={{ width: '100%' }}
+                                />
+                            </View>
                         )}
                     </View>
                 </View>
@@ -687,15 +846,16 @@ const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.8)',
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
+        padding: 20,
     },
     modalContent: {
         backgroundColor: COLORS.cardBlack,
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
+        borderRadius: 20,
         padding: 25,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.azmitaRed,
+        borderWidth: 1,
+        borderColor: COLORS.azmitaRed,
+        maxHeight: '80%',
     },
     modalHeader: {
         flexDirection: 'row',

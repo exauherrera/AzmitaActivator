@@ -302,6 +302,48 @@ const MainScreen = () => {
                                 </View>
                             </ScrollView>
 
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        Alert.alert(
+                                            t('warning') || 'ADVERTENCIA',
+                                            t('confirm_wipe') || '¿Estás seguro? Esto borrará TODOS los datos del chip.',
+                                            [
+                                                { text: t('cancel'), style: 'cancel' },
+                                                {
+                                                    text: t('confirm_wipe_action') || 'BORRAR',
+                                                    style: 'destructive',
+                                                    onPress: async () => {
+                                                        try {
+                                                            const success = await nfcService.eraseTag();
+                                                            if (success) Alert.alert(t('success'), 'Chip borrado/formateado correctamente.');
+                                                        } catch (e) {
+                                                            Alert.alert(t('error'), 'Error al borrar chip.');
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        );
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        marginRight: 10,
+                                        backgroundColor: 'rgba(230, 57, 70, 0.1)',
+                                        borderColor: COLORS.azmitaRed,
+                                        borderWidth: 1,
+                                        borderRadius: 12,
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        paddingVertical: 12
+                                    }}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Ionicons name="trash-outline" size={16} color={COLORS.azmitaRed} />
+                                        <Text style={{ color: COLORS.azmitaRed, fontFamily: 'Orbitron_700Bold', fontSize: 12 }}>FORMATEAR</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+
                             <NeonButton
                                 title={t('confirm_write') || 'AZMITAR'}
                                 onPress={confirmAzmitar}

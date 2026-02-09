@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 // Safe import for web
 const NfcManager = Platform.OS !== 'web' ? require('react-native-nfc-manager').default : null;
-const { NfcTech } = Platform.OS !== 'web' ? require('react-native-nfc-manager') : { NfcTech: {} };
+const { NfcTech, Ndef } = Platform.OS !== 'web' ? require('react-native-nfc-manager') : { NfcTech: {}, Ndef: {} };
 
 import CryptoJS from 'crypto-js';
 
@@ -150,6 +150,49 @@ class NfcService {
         console.log('[DNA] PHYGITAL LOCK: Chip File Settings updated to AUTHENTICATED/LOCKED.');
         console.log(`[DNA] Metadata injected: ${JSON.stringify(protocolMetadata)}`);
         return true;
+    }
+
+    /**
+     * Write NDEF message to the tag
+     */
+    async writeNdef(message: string) {
+        if (!NfcManager) return;
+        try {
+            await NfcManager.requestTechnology(NfcTech.Ndef);
+            const bytes = Ndef.encodeMessage([Ndef.textRecord(message)]);
+            if (bytes) {
+                await NfcManager.ndefHandler.writeNdefMessage(bytes);
+                return true;
+            }
+            return false;
+        } catch (ex) {
+            console.warn('NFC Write Error:', ex);
+            throw ex;
+        } finally {
+            NfcManager.cancelTechnologyRequest();
+        }
+    }
+
+    /**
+     * Erase/Format tag (Write empty NDEF)
+     */
+    async eraseTag() {
+        if (!NfcManager) return;
+        try {
+            await NfcManager.requestTechnology(NfcTech.Ndef);
+            // Write empty array of records for empty NDEF
+            const bytes = Ndef.encodeMessage([]);
+            if (bytes) {
+                await NfcManager.ndefHandler.writeNdefMessage(bytes);
+                return true;
+            }
+            return false;
+        } catch (ex) {
+            console.warn('NFC Erase Error:', ex);
+            throw ex;
+        } finally {
+            NfcManager.cancelTechnologyRequest();
+        }
     }
 }
 

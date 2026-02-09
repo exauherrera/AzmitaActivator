@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../theme/colors';
 
@@ -10,31 +10,38 @@ interface NeonButtonProps {
     style?: ViewStyle;
     titleStyle?: TextStyle;
     disabled?: boolean;
+    loading?: boolean;
 }
 
-export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style, titleStyle, disabled }) => {
+export const NeonButton: React.FC<NeonButtonProps> = ({ onPress, title, subtitle, style, titleStyle, disabled, loading }) => {
     return (
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.8}
-            style={[styles.wrapper, style, disabled && styles.disabled]}
-            disabled={disabled}
+            style={[styles.wrapper, style, (disabled || loading) && styles.disabled]}
+            disabled={disabled || loading}
         >
             <LinearGradient
-                colors={disabled ? ['#2A2A2A', '#1A1A1A'] : [COLORS.azmitaRed, '#8B0000']}
+                colors={disabled || loading ? ['#2A2A2A', '#1A1A1A'] : [COLORS.azmitaRed, '#8B0000']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.gradient}
             >
-                <Text
-                    style={[styles.title, titleStyle, disabled && styles.disabledText]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                >
-                    {title}
-                </Text>
-                {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+                {loading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                    <>
+                        <Text
+                            style={[styles.title, titleStyle, disabled && styles.disabledText]}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                        >
+                            {title}
+                        </Text>
+                        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+                    </>
+                )}
             </LinearGradient>
         </TouchableOpacity>
     );

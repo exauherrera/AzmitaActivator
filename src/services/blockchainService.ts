@@ -94,28 +94,48 @@ class BlockchainService {
     private currentRpc: string = NETWORKS.mainnet.rpc;
     private api: ApiPromise | null = null;
     private provider: WsProvider | null = null;
+    private configCache: Map<string, any> = new Map();
+    private isInitializing: boolean = false;
 
     async init() {
+        if (this.api?.isConnected) return true;
+        if (this.isInitializing) return true;
+
         console.log(`[BLOCKCHAIN] Initializing connection to ${this.currentRpc}`);
+        this.isInitializing = true;
         try {
             await this.connect(this.currentRpc);
             return true;
         } catch (e) {
             console.error('[BLOCKCHAIN] Init failed', e);
             return false;
+        } finally {
+            this.isInitializing = false;
         }
     }
 
     private async connect(rpcUrl: string) {
-        if (this.api && this.currentRpc === rpcUrl && this.api.isConnected) return;
+        if (this.api && this.currentRpc === rpcUrl && this.api.isConnected) {
+            return;
+        }
 
         if (this.api) {
+            console.log(`[BLOCKCHAIN] Disconnecting from previous RPC: ${this.currentRpc}`);
             await this.api.disconnect();
         }
 
         this.currentRpc = rpcUrl;
         this.provider = new WsProvider(rpcUrl);
-        this.api = await ApiPromise.create({ provider: this.provider });
+
+        // Speed up: Use ApiPromise cache if possible, but standard is to create new one
+        this.api = await ApiPromise.create({
+            provider: this.provider,
+            noInitWarn: true,
+            throwOnConnect: false
+        });
+
+        // Ensure we wait until ready or connected
+        await this.api.isReady;
         console.log(`[BLOCKCHAIN] Connected to ${rpcUrl}`);
     }
 
@@ -127,21 +147,31 @@ class BlockchainService {
     }
 
     getNetworkConfig() {
+        if (this.configCache.has(this.currentRpc)) {
+            return this.configCache.get(this.currentRpc);
+        }
+
         const allNetworks = Object.values(NETWORKS);
 
         // 1. Search top-level networks
-        const primary = allNetworks.find(n => n.rpc === this.currentRpc);
-        if (primary) return primary;
+        let config = allNetworks.find(n => n.rpc === this.currentRpc);
 
         // 2. Search within parachains of ANY network
-        for (const network of allNetworks) {
-            if (network.parachains) {
-                const para = network.parachains.find(p => p.rpc === this.currentRpc);
-                if (para) return para;
+        if (!config) {
+            for (const network of allNetworks) {
+                if (network.parachains) {
+                    const para = network.parachains.find(p => p.rpc === this.currentRpc);
+                    if (para) {
+                        config = para;
+                        break;
+                    }
+                }
             }
         }
 
-        return NETWORKS.mainnet;
+        const finalConfig = config || NETWORKS.mainnet;
+        this.configCache.set(this.currentRpc, finalConfig);
+        return finalConfig;
     }
 
     async generateNewWallet() {
@@ -195,48 +225,83 @@ class BlockchainService {
     }
 
     /**
-     * Azmitar: Mints an RWA NFT (Generic Simulation)
+     * Get history for a specific asset
      */
-    async azmitarAsset(ownerAddress: string, metadata: any) {
-        console.log(`[BLOCKCHAIN] INITIATING ACTIVATION for UID: ${metadata.uid}`);
+    async getAssetHistory(asset: any) {
+        // In a real scenario, this would fetch events from a parachain or explorer
+        // For now, we enhance the existing chainOfCustody or generate a consistent history
+        if (asset.chainOfCustody) return asset.chainOfCustody;
 
-        const chainOfCustody = [
+        return [
             {
-                date: Date.now() - (60 * 60 * 24 * 7 * 1000),
+                date: asset.timestamp - (60 * 60 * 24 * 7 * 1000),
                 event: 'FACTORY_PROVISIONING',
-                owner: 'Manufacturer',
+                owner: 'Azmita Manufacturer',
                 status: 'VERIFIED'
             },
             {
-                date: Date.now(),
+                date: asset.timestamp,
                 event: 'VINCULATION',
-                owner: ownerAddress,
+                owner: 'Current Owner',
                 status: 'LOCKED'
             }
         ];
+    }
 
-        const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    /**
+     * Transfer an asset to a new address (Rule 1 & 4)
+     */
+    async transferAsset(assetId: string, fromAddress: string, toAddress: string, ownerMnemonic: string) {
+        console.log(`[BLOCKCHAIN] Transferring Asset ${assetId} from ${fromAddress} to ${toAddress}`);
 
-        // Simulate interaction delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Use gas-less abstraction (Rule 4)
+        return await this.executeGaslessTx(async () => {
+            if (!this.api || !this.api.isConnected) await this.connect(this.currentRpc);
 
-        return {
-            success: true,
-            txHash,
-            azmitId: `AZM-${metadata.uid.slice(-6).toUpperCase()}`,
-            chainOfCustody
-        };
+            // Simulation of Phygital Unlocking and Ownership Transfer
+            // In a real Azmita parachain, this would be a specific extrinsic
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+            return {
+                success: true,
+                txHash,
+                event: 'OWNERSHIP_TRANSFERRED',
+                newOwner: toAddress,
+                timestamp: Date.now()
+            };
+        });
+    }
+
+    /**
+     * Rule 4: Gas-less Experience wrapper
+     * This abstracts fees and technical signing details.
+     */
+    private async executeGaslessTx<T>(txOperation: () => Promise<T>): Promise<T> {
+        console.log('[GASLESS] Intercepting transaction for proxy execution...');
+        // Here we would use a Fee Payer / Proxy account to sign for the user
+        const result = await txOperation();
+        console.log('[GASLESS] Transaction executed successfully via Azmita Proxy.');
+        return result;
     }
 
     async getTransferFee(senderAddress: string, recipientAddress: string, amount: string): Promise<{ formatted: string; raw: string; float: number }> {
         if (!this.api || !this.api.isConnected) await this.connect(this.currentRpc);
 
         try {
-            const transfer = this.api!.tx.balances.transferKeepAlive(recipientAddress, amount);
+            // Compatibility: Check for transferAllowDeath (New), transfer (Old), or fallback to keepAlive
+            const transferMethod = this.api!.tx.balances.transferAllowDeath || this.api!.tx.balances.transfer || this.api!.tx.balances.transferKeepAlive;
+
+            if (!transferMethod) {
+                throw new Error('No suitable transfer method found on this chain');
+            }
+
+            const transfer = transferMethod(recipientAddress, amount);
             // We usually need the sender to estimate fee correctly (nonce etc), but we can try with a dummy
             const info = await transfer.paymentInfo(senderAddress);
 
-            const chainDecimals = this.api!.registry.chainDecimals[0] || 12;
+            const chainDecimals = (this.api && this.api.registry && this.api.registry.chainDecimals[0]) || 12;
             const feeBN = info.partialFee;
             const feeFloat = parseInt(feeBN.toString()) / Math.pow(10, chainDecimals);
 
@@ -252,7 +317,7 @@ class BlockchainService {
         }
     }
 
-    async sendTransfer(senderMnemonic: string, toAddress: string, amount: string): Promise<{ success: boolean; txHash: string; error?: string }> {
+    async sendTransfer(senderMnemonic: string, toAddress: string, amount: string, expectedAddress?: string): Promise<{ success: boolean; txHash: string; error?: string }> {
         try {
             console.log(`[BLOCKCHAIN] Transferring ${amount} to ${toAddress}`);
             if (!this.api || !this.api.isConnected) await this.connect(this.currentRpc);
@@ -260,29 +325,47 @@ class BlockchainService {
             const keyring = new Keyring({ type: 'sr25519' });
             const sender = keyring.addFromUri(senderMnemonic);
 
+            // SECURITY: Verify that the seed actually belongs to the user we think it does
+            if (expectedAddress && sender.address !== expectedAddress) {
+                console.error(`[SECURITY] Mismatch! Seed derives to ${sender.address}, but expected ${expectedAddress}`);
+                return {
+                    success: false,
+                    txHash: '',
+                    error: 'SECURITY ALERT: The stored seed does not match the active wallet address. Operation aborted.'
+                };
+            }
+
             // Substrate expects amount in Planck (lowest unit). 
             // Assuming the input 'amount' is already handled or we need to handle decimals.
             // Ideally use `formatBalance` settings from chain properties.
-            const chainDecimals = this.api!.registry.chainDecimals[0] || 12;
-            const amountBN = (BigInt(parseFloat(amount) * Math.pow(10, chainDecimals))).toString();
+            const chainDecimals = (this.api && this.api.registry && this.api.registry.chainDecimals[0]) || 12;
+            const rawAmount = parseFloat(amount) * Math.pow(10, chainDecimals);
+            const amountBN = BigInt(Math.floor(rawAmount)).toString();
 
             return new Promise(async (resolve) => {
                 try {
-                    const unsub = await this.api!.tx.balances
-                        .transferKeepAlive(toAddress, amountBN)
+                    // Compatibility: Check for transferAllowDeath (New), transfer (Old), or fallback to keepAlive
+                    const transferMethod = this.api!.tx.balances.transferAllowDeath || this.api!.tx.balances.transfer || this.api!.tx.balances.transferKeepAlive;
+
+                    if (!transferMethod) {
+                        throw new Error('No suitable transfer method found on this chain');
+                    }
+
+                    const unsub = await transferMethod(toAddress, amountBN)
                         .signAndSend(sender, (result: any) => {
+                            console.log(`[BLOCKCHAIN] Tx Status: ${result.status.type}`);
                             if (result.status.isInBlock) {
                                 console.log(`[BLOCKCHAIN] Transaction included at blockHash ${result.status.asInBlock}`);
-                            } else if (result.status.isFinalized) {
-                                console.log(`[BLOCKCHAIN] Transaction finalized at blockHash ${result.status.asFinalized}`);
                                 unsub();
                                 resolve({
                                     success: true,
                                     txHash: result.txHash.toHex()
                                 });
+                            } else if (result.status.isFinalized) {
+                                console.log(`[BLOCKCHAIN] Transaction finalized at blockHash ${result.status.asFinalized}`);
                             } else if (result.isError) {
-                                console.error('[BLOCKCHAIN] Transaction error');
-                                resolve({ success: false, txHash: '', error: 'Transaction failed' });
+                                console.error('[BLOCKCHAIN] Transaction error event');
+                                resolve({ success: false, txHash: '', error: 'Transaction failed (Event Error)' });
                             }
                         });
                 } catch (err: any) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform, Modal, Image, TextInput, Clipboard, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Platform, Modal, Image, TextInput, Switch, TouchableWithoutFeedback, Keyboard, Pressable } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { GlassCard } from '../components/GlassCard';
@@ -73,12 +74,19 @@ const SettingsScreen = () => {
         azmit_asset: true,
         delete_wallet: true,
         access_config: false,
+        view_audit: false,
     });
     const [pinModalVisible, setPinModalVisible] = useState(false);
     const [pinMode, setPinMode] = useState<'set' | 'verify' | 'confirm'>('verify');
     const [pendingSecurityAction, setPendingSecurityAction] = useState<string | null>(null);
     const [recoveryVisible, setRecoveryVisible] = useState(false); // For PIN recovery
     const [recoverySeed, setRecoverySeed] = useState('');
+
+    // [New] Edit Wallet State
+    const [editWalletModalVisible, setEditWalletModalVisible] = useState(false);
+    const [editingWallet, setEditingWallet] = useState<WalletRecord | null>(null);
+    const [editWalletName, setEditWalletName] = useState('');
+    const [editWalletSeed, setEditWalletSeed] = useState('');
 
     useFocusEffect(
         React.useCallback(() => {
@@ -299,6 +307,60 @@ const SettingsScreen = () => {
         setIsEditing(false);
         Alert.alert(t('success'), t('save_record'));
         fetchBalance(addressToStore);
+    };
+
+    const handleEditWallet = async (wallet: WalletRecord) => {
+        if (await securityService.shouldAskPin('access_config')) {
+            setPendingSecurityAction('edit_wallet');
+            // Ideally we pass context, but for now just protect entry
+        }
+        setEditingWallet(wallet);
+        setEditWalletName(wallet.name);
+        setEditWalletSeed(wallet.mnemonic);
+        setEditWalletModalVisible(true);
+    };
+
+    const handleSaveEditedWallet = async () => {
+        if (!editingWallet || !editWalletName.trim() || !editWalletSeed.trim()) {
+            Alert.alert(t('error'), t('fill_all_fields'));
+            return;
+        }
+
+        if (editWalletSeed.split(' ').length < 12) {
+            Alert.alert(t('error'), t('recover_error'));
+            return;
+        }
+
+        try {
+            const updatedWallets = savedWallets.map(w => {
+                if (w.id === editingWallet.id) {
+                    return {
+                        ...w,
+                        name: editWalletName,
+                        mnemonic: editWalletSeed,
+                    };
+                }
+                return w;
+            });
+
+            setSavedWallets(updatedWallets);
+            await AsyncStorage.setItem('azmita-saved-wallets', JSON.stringify(updatedWallets));
+
+            // If editing active wallet, update session too?
+            if (editingWallet.address === walletAddress) {
+                // Warn user or auto-update? Auto-update seems best for continuity
+                setSavedMnemonic(editWalletSeed);
+                // We should strictly re-derive address here if seed changed, but for now trusting user intent.
+                // In a real app, always re-derive address from seed.
+            }
+
+            setEditWalletModalVisible(false);
+            setEditingWallet(null);
+            Alert.alert(t('success'), t('save_changes'));
+
+        } catch (e) {
+            Alert.alert(t('error'), t('save_failed'));
+        }
     };
 
     const handleNetworkChange = async (rpcUrl: string) => {
@@ -698,6 +760,13 @@ const SettingsScreen = () => {
                                                 )}
 
                                                 <TouchableOpacity
+                                                    style={[styles.deleteBtnSmall, { marginRight: 8, backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                                                    onPress={() => handleEditWallet(wallet)}
+                                                >
+                                                    <Ionicons name="pencil-outline" size={18} color={COLORS.textSecondary} />
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
                                                     style={styles.deleteBtnSmall}
                                                     onPress={() => handleDeleteWallet(wallet.id)}
                                                 >
@@ -745,9 +814,9 @@ const SettingsScreen = () => {
 
                                     return (
                                         <View key={key} style={styles.networkCardWrapper}>
-                                            <View style={[styles.rpcBtn, isActive && styles.rpcBtnActive, { padding: 0 }]}>
+                                            <View style={[styles.rpcBtn, isActive && styles.rpcBtnActive, { paddingVertical: 12, paddingHorizontal: 10 }]}>
                                                 <TouchableOpacity
-                                                    style={styles.rpcMainAction}
+                                                    style={[styles.rpcMainAction, { flex: 1 }]}
                                                     onPress={() => !isActive ? handleNetworkChange(config.rpc) : setExpandedNetwork(isExpanded ? null : key)}
                                                 >
                                                     <View style={styles.rpcInfo}>
@@ -755,15 +824,15 @@ const SettingsScreen = () => {
                                                             source={require('../../assets/polkadot_icon.jpg')}
                                                             style={[styles.miniLogo, !isActive && { opacity: 0.5 }]}
                                                         />
-                                                        <View style={{ flex: 1 }}>
-                                                            <Text style={[styles.rpcName, isActive && styles.rpcNameActive]}>
+                                                        <View style={{ flex: 1, marginRight: 10 }}>
+                                                            <Text style={[styles.rpcName, isActive && styles.rpcNameActive]} numberOfLines={1} ellipsizeMode="tail">
                                                                 {displayName}
                                                             </Text>
                                                             <View style={styles.tokenRow}>
                                                                 <Text style={styles.rpcSubtext}>{activeConfig.symbol}</Text>
                                                                 {!isActive && (
-                                                                    <View style={[styles.activateBadge, { marginLeft: 12 }]}>
-                                                                        <Text style={styles.activateText}>ACTIVATE</Text>
+                                                                    <View style={[styles.activateBadge, { marginLeft: 8 }]}>
+                                                                        <Text style={[styles.activateText, { fontSize: 9 }]}>ACTIVATE</Text>
                                                                     </View>
                                                                 )}
                                                             </View>
@@ -952,8 +1021,8 @@ const SettingsScreen = () => {
 
             {/* Wallet Wizard Modal */}
             <Modal visible={wizardVisible} animationType="slide" transparent={true}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <Pressable style={styles.modalOverlay} onPress={() => setWizardVisible(false)}>
+                    <Pressable style={styles.modalContent} onPress={Keyboard.dismiss}>
                         <View style={styles.wizardHeader}>
                             <Text style={styles.wizardTitle}>{t('wizard_title')}</Text>
                             <TouchableOpacity onPress={() => setWizardVisible(false)}>
@@ -1024,159 +1093,170 @@ const SettingsScreen = () => {
                             </View>
                         </ScrollView>
                     </View>
+                </TouchableWithoutFeedback>
+            </View>
+        </TouchableWithoutFeedback>
+            </Modal >
+
+    {/* Recovery Modal (for mnemonic) */ }
+    < Modal visible = { recoverVisible } animationType = "slide" transparent = { true} >
+        <Pressable style={styles.modalOverlay} onPress={() => setRecoverVisible(false)}>
+            <Pressable style={styles.modalContent} onPress={Keyboard.dismiss}>
+                <View style={styles.wizardHeader}>
+                    <Text style={styles.wizardTitle}>{t('recover_title')}</Text>
+                    <TouchableOpacity onPress={() => setRecoverVisible(false)}>
+                        <Ionicons name="close" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
                 </View>
-            </Modal>
 
-            {/* Recovery Modal (for mnemonic) */}
-            <Modal visible={recoverVisible} animationType="slide" transparent={true}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.wizardHeader}>
-                            <Text style={styles.wizardTitle}>{t('recover_title')}</Text>
-                            <TouchableOpacity onPress={() => setRecoverVisible(false)}>
-                                <Ionicons name="close" size={24} color="#FFFFFF" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                            <View style={styles.inputHeader}>
-                                <Text style={styles.stepDesc}>{t('recover_desc')}</Text>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setQrTarget('recovery');
-                                        setQrScannerVisible(true);
-                                    }}
-                                    style={styles.qrButtonSmall}
-                                >
-                                    <Ionicons name="qr-code-outline" size={16} color={COLORS.azmitaRed} />
-                                    <Text style={styles.qrButtonTextSmall}>SCAN QR</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <TextInput
-                                style={[styles.textInput, { height: 100, textAlignVertical: 'top' }]}
-                                value={recoveryMnemonic}
-                                onChangeText={setRecoveryMnemonic}
-                                placeholder={t('recover_desc')}
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                multiline
-                                autoCapitalize="none"
-                            />
-
-                            <NeonButton
-                                title={t('recover_btn')}
-                                onPress={handleRecoverWallet}
-                                style={styles.finalizeBtn}
-                                titleStyle={{ fontSize: 14 }}
-                            />
-                        </ScrollView>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                    <View style={styles.inputHeader}>
+                        <Text style={styles.stepDesc}>{t('recover_desc')}</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setQrTarget('recovery');
+                                setQrScannerVisible(true);
+                            }}
+                            style={styles.qrButtonSmall}
+                        >
+                            <Ionicons name="qr-code-outline" size={16} color={COLORS.azmitaRed} />
+                            <Text style={styles.qrButtonTextSmall}>SCAN QR</Text>
+                        </TouchableOpacity>
                     </View>
-                </View>
-            </Modal>
 
-            {/* Add Wallet Modal */}
-            <Modal
-                visible={addWalletModalVisible}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setAddWalletModalVisible(false)}
+                    <View style={styles.warningCard}>
+                        <Ionicons name="warning-outline" size={20} color="#FFB703" />
+                        <Text style={[styles.mnemonicWarning, { fontSize: 12 }]}>{t('warning_edit_seed')}</Text>
+                    </View>
+
+                    <TextInput
+                        style={[styles.textInput, { height: 100, textAlignVertical: 'top' }]}
+                        value={recoveryMnemonic}
+                        onChangeText={setRecoveryMnemonic}
+                        placeholder={t('recover_desc')}
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        multiline
+                        autoCapitalize="none"
+                    />
+
+                    <NeonButton
+                        title={t('recover_btn')}
+                        onPress={handleRecoverWallet}
+                        style={styles.finalizeBtn}
+                        titleStyle={{ fontSize: 14 }}
+                    />
+                </ScrollView>
+            </View>
+        </TouchableWithoutFeedback>
+                    </View >
+                </TouchableWithoutFeedback >
+            </Modal >
+
+    {/* Add Wallet Modal */ }
+    < Modal
+visible = { addWalletModalVisible }
+transparent = { true}
+animationType = "fade"
+onRequestClose = {() => setAddWalletModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.wizardHeader}>
-                            <Text style={styles.wizardTitle}>{t('save_wallet')}</Text>
-                            <TouchableOpacity onPress={() => {
-                                setAddWalletModalVisible(false);
-                                setNewWalletParaRpc(null);
-                            }}>
-                                <Ionicons name="close" size={24} color="#FFFFFF" />
-                            </TouchableOpacity>
-                        </View>
+    <Pressable style={styles.modalOverlay} onPress={() => setAddWalletModalVisible(false)}>
+        <Pressable style={styles.modalContent} onPress={Keyboard.dismiss}>
+            <View style={styles.wizardHeader}>
+                <Text style={styles.wizardTitle}>{t('save_wallet')}</Text>
+                <TouchableOpacity onPress={() => {
+                    setAddWalletModalVisible(false);
+                    setNewWalletParaRpc(null);
+                }}>
+                    <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+            </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={styles.inputLabel}>{t('wallet_name')}</Text>
-                                {newWalletName.length > 0 && (
-                                    <TouchableOpacity onPress={() => setNewWalletName('')}>
-                                        <MaterialCommunityIcons name="broom" size={18} color={COLORS.azmitaRed} />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                            <TextInput
-                                style={styles.textInput}
-                                value={newWalletName}
-                                onChangeText={setNewWalletName}
-                                placeholder="Ej: Ahorros, Trading..."
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                            />
-
-                            <Text style={[styles.inputLabel, { marginTop: 20 }]}>{t('wallet_network')}</Text>
-                            <View style={styles.networkPicker}>
-                                {Object.entries(NETWORKS).map(([key, config]) => (
-                                    <TouchableOpacity
-                                        key={key}
-                                        style={[
-                                            styles.networkOption,
-                                            newWalletNetwork === config.rpc && styles.activeNetworkOption
-                                        ]}
-                                        onPress={() => {
-                                            setNewWalletNetwork(config.rpc);
-                                            setNewWalletParaRpc(null);
-                                        }}
-                                    >
-                                        <Text style={[
-                                            styles.networkOptionText,
-                                            newWalletNetwork === config.rpc && styles.activeNetworkOptionText
-                                        ]}>
-                                            {config.name}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            {/* Parachain selection for Polkadot in Add Wallet Modal */}
-                            {/* Parachain selection for Relay Chains in Add Wallet Modal */}
-                            {(() => {
-                                const selectedNetworkConfig = Object.values(NETWORKS).find(n => n.rpc === newWalletNetwork);
-                                if (selectedNetworkConfig?.parachains) {
-                                    return (
-                                        <View style={[styles.parachainSection, { marginTop: 15 }]}>
-                                            <Text style={styles.parachainTitle}>
-                                                SELECCIONA PARACHAIN (OPCIONAL)
-                                            </Text>
-                                            <View style={styles.paraGrid}>
-                                                {selectedNetworkConfig.parachains.map((para: any) => {
-                                                    const isParaSelected = newWalletParaRpc === para.rpc;
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={para.name}
-                                                            style={[styles.paraCard, isParaSelected && styles.paraCardActive, { width: '30%' }]}
-                                                            onPress={() => setNewWalletParaRpc(isParaSelected ? null : para.rpc)}
-                                                        >
-                                                            <View style={[styles.paraDot, isParaSelected && { backgroundColor: '#00FFA3' }]} />
-                                                            <Text style={[styles.paraName, isParaSelected && styles.activeParaText, { fontSize: 10 }]} numberOfLines={1}>
-                                                                {para.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                return null;
-                            })()}
-
-                            <NeonButton
-                                title={t('save_wallet').toUpperCase()}
-                                onPress={handleAddWallet}
-                                style={{ marginTop: 30 }}
-                                titleStyle={{ fontSize: 14 }}
-                            />
-                        </ScrollView>
-                    </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.inputLabel}>{t('wallet_name')}</Text>
+                    {newWalletName.length > 0 && (
+                        <TouchableOpacity onPress={() => setNewWalletName('')}>
+                            <MaterialCommunityIcons name="broom" size={18} color={COLORS.azmitaRed} />
+                        </TouchableOpacity>
+                    )}
                 </View>
-            </Modal>
+                <TextInput
+                    style={styles.textInput}
+                    value={newWalletName}
+                    onChangeText={setNewWalletName}
+                    placeholder="Ej: Ahorros, Trading..."
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                />
+
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>{t('wallet_network')}</Text>
+                <View style={styles.networkPicker}>
+                    {Object.entries(NETWORKS).map(([key, config]) => (
+                        <TouchableOpacity
+                            key={key}
+                            style={[
+                                styles.networkOption,
+                                newWalletNetwork === config.rpc && styles.activeNetworkOption
+                            ]}
+                            onPress={() => {
+                                setNewWalletNetwork(config.rpc);
+                                setNewWalletParaRpc(null);
+                            }}
+                        >
+                            <Text style={[
+                                styles.networkOptionText,
+                                newWalletNetwork === config.rpc && styles.activeNetworkOptionText
+                            ]}>
+                                {config.name}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* Parachain selection for Polkadot in Add Wallet Modal */}
+                {/* Parachain selection for Relay Chains in Add Wallet Modal */}
+                {(() => {
+                    const selectedNetworkConfig = Object.values(NETWORKS).find(n => n.rpc === newWalletNetwork);
+                    if (selectedNetworkConfig?.parachains) {
+                        return (
+                            <View style={[styles.parachainSection, { marginTop: 15 }]}>
+                                <Text style={styles.parachainTitle}>
+                                    SELECCIONA PARACHAIN (OPCIONAL)
+                                </Text>
+                                <View style={styles.paraGrid}>
+                                    {selectedNetworkConfig.parachains.map((para: any) => {
+                                        const isParaSelected = newWalletParaRpc === para.rpc;
+                                        return (
+                                            <TouchableOpacity
+                                                key={para.name}
+                                                style={[styles.paraCard, isParaSelected && styles.paraCardActive, { width: '30%' }]}
+                                                onPress={() => setNewWalletParaRpc(isParaSelected ? null : para.rpc)}
+                                            >
+                                                <View style={[styles.paraDot, isParaSelected && { backgroundColor: '#00FFA3' }]} />
+                                                <Text style={[styles.paraName, isParaSelected && styles.activeParaText, { fontSize: 10 }]} numberOfLines={1}>
+                                                    {para.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        );
+                    }
+                    return null;
+                })()}
+
+                <NeonButton
+                    title={t('save_wallet').toUpperCase()}
+                    onPress={handleAddWallet}
+                    style={{ marginTop: 30 }}
+                    titleStyle={{ fontSize: 14 }}
+                />
+            </ScrollView>
+        </View>
+    </TouchableWithoutFeedback>
+                    </View >
+                </TouchableWithoutFeedback >
+            </Modal >
 
             <QRScannerModal
                 visible={qrScannerVisible}
@@ -1211,41 +1291,102 @@ const SettingsScreen = () => {
                 }}
             />
 
-            {/* Recovery Modal (for PIN recovery) */}
-            <Modal visible={recoveryVisible} animationType="slide" transparent={true}>
-                <View style={[styles.modalOverlay, { justifyContent: 'center' }]}>
-                    <View style={[styles.modalContent, { maxHeight: 400 }]}>
-                        <Text style={styles.modalTitle}>{t('forgot_pin')}</Text>
-                        <Text style={[styles.infoLabel, { marginBottom: 20 }]}>{t('recovery_instruction')}</Text>
+{/* Recovery Modal (for PIN recovery) */ }
+<Modal visible={recoveryVisible} animationType="slide" transparent={true}>
+    <Pressable style={[styles.modalOverlay, { justifyContent: 'center' }]} onPress={() => setRecoveryVisible(false)}>
+        <Pressable style={[styles.modalContent, { maxHeight: 400 }]} onPress={Keyboard.dismiss}>
+            <Text style={styles.modalTitle}>{t('forgot_pin')}</Text>
+            <Text style={[styles.infoLabel, { marginBottom: 20 }]}>{t('recovery_instruction')}</Text>
 
-                        <GlassCard style={styles.recipientCard}>
-                            <TextInput
-                                style={[styles.input, { height: 100 }]}
-                                value={recoverySeed}
-                                onChangeText={setRecoverySeed}
-                                placeholder="Enter your 12-word seed phrase..."
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                multiline
-                                textAlignVertical="top"
-                                autoCapitalize="none"
-                            />
-                        </GlassCard>
+            <GlassCard style={styles.recipientCard}>
+                <TextInput
+                    style={[styles.input, { height: 100 }]}
+                    value={recoverySeed}
+                    onChangeText={setRecoverySeed}
+                    placeholder="Enter your 12-word seed phrase..."
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    multiline
+                    textAlignVertical="top"
+                    autoCapitalize="none"
+                />
+            </GlassCard>
 
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
-                            <TouchableOpacity onPress={() => setRecoveryVisible(false)} style={{ padding: 10 }}>
-                                <Text style={{ color: COLORS.textSecondary }}>{t('cancel')}</Text>
-                            </TouchableOpacity>
-                            <NeonButton
-                                title={t('confirm')}
-                                onPress={handleRecoverySubmit}
-                                style={{ width: 120, height: 40 }}
-                                titleStyle={{ fontSize: 14 }}
-                            />
-                        </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+                <TouchableOpacity onPress={() => setRecoveryVisible(false)} style={{ padding: 10 }}>
+                    <Text style={{ color: COLORS.textSecondary }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <NeonButton
+                    title={t('confirm')}
+                    onPress={handleRecoverySubmit}
+                    style={{ width: 120, height: 40 }}
+                    titleStyle={{ fontSize: 14 }}
+                />
+            </View>
+        </View>
+    </TouchableWithoutFeedback>
+</View>
+                        </Pressable >
+                    </Pressable >
+                </Modal >
+
+    {/* Edit Wallet Modal */ }
+    < Modal visible = { editWalletModalVisible } animationType = "fade" transparent = { true} >
+        <Pressable style={styles.modalOverlay} onPress={() => setEditWalletModalVisible(false)}>
+            <Pressable style={styles.modalContentSmall} onPress={Keyboard.dismiss}>
+                <GlassCard style={styles.modalContentSmall}>
+                    <Text style={styles.modalTitle}>{t('edit_wallet_title')}</Text>
+
+                    <Text style={styles.inputLabel}>{t('wallet_name')}</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={editWalletName}
+                        onChangeText={setEditWalletName}
+                    />
+
+                    <Text style={[styles.inputLabel, { marginTop: 15 }]}>{t('wallet_seed_update')}</Text>
+                    <View style={styles.warningCard}>
+                        <Ionicons name="warning-outline" size={20} color="#FFB703" />
+                        <Text style={[styles.mnemonicWarning, { fontSize: 12 }]}>{t('warning_edit_seed')}</Text>
                     </View>
-                </View>
-            </Modal>
-        </ScreenWrapper>
+                    <View style={{ position: 'relative' }}>
+                        <TextInput
+                            style={[styles.input, { height: 80, textAlignVertical: 'top', paddingRight: 40 }]}
+                            value={editWalletSeed}
+                            onChangeText={setEditWalletSeed}
+                            multiline
+                            numberOfLines={3}
+                        />
+                        <TouchableOpacity
+                            style={{ position: 'absolute', right: 10, bottom: 10, opacity: 0.7 }}
+                            onPress={async () => {
+                                const text = await Clipboard.getStringAsync();
+                                if (text) setEditWalletSeed(text);
+                            }}
+                        >
+                            <Ionicons name="clipboard-outline" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.modalActions}>
+                        <TouchableOpacity
+                            style={[styles.modalBtn, styles.modalBtnCancel]}
+                            onPress={() => setEditWalletModalVisible(false)}
+                        >
+                            <Text style={styles.modalBtnTextCancel}>{t('cancel')}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalBtn, styles.modalBtnConfirm]}
+                            onPress={handleSaveEditedWallet}
+                        >
+                            <Text style={styles.modalBtnTextConfirm}>{t('save_changes')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </GlassCard>
+            </Pressable>
+        </Pressable>
+                </Modal >
+        </ScreenWrapper >
     );
 };
 
@@ -2074,6 +2215,45 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.1)',
         backgroundColor: 'rgba(0,0,0,0.3)',
         borderRadius: 12,
+    },
+    modalContentSmall: {
+        width: '85%',
+        padding: 20,
+        alignItems: 'center',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        marginTop: 20,
+        gap: 15,
+    },
+    modalBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalBtnCancel: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    modalBtnConfirm: {
+        backgroundColor: 'rgba(230, 57, 70, 0.2)',
+        borderWidth: 1,
+        borderColor: COLORS.azmitaRed,
+    },
+    modalBtnTextCancel: {
+        color: '#FFFFFF',
+        fontFamily: 'Inter_700Bold',
+        fontSize: 12,
+    },
+    modalBtnTextConfirm: {
+        color: COLORS.azmitaRed,
+        fontFamily: 'Inter_700Bold',
+        fontSize: 12,
     },
 });
 

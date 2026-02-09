@@ -94,20 +94,28 @@ const WalletScreen = () => {
     );
 
     const loadWalletData = async () => {
-        setLoadingBalance(true);
         try {
             const savedAddress = await AsyncStorage.getItem('user-wallet-address');
             const savedRpc = await AsyncStorage.getItem('user-selected-network');
             const rpcToUse = savedRpc || NETWORKS.mainnet.rpc;
 
-            setSelectedRpc(rpcToUse);
-            await blockchainService.switchNetwork(rpcToUse);
-            setTokenSymbol(blockchainService.getNetworkConfig().symbol);
+            // PERFORMANCE: Only switch and show loading if network actually changed or not connected
+            const needsSwitch = selectedRpc !== rpcToUse || !blockchainService.getNetworkConfig().symbol;
+
+            if (needsSwitch) {
+                setLoadingBalance(true);
+                setSelectedRpc(rpcToUse);
+                await blockchainService.switchNetwork(rpcToUse);
+                setTokenSymbol(blockchainService.getNetworkConfig().symbol);
+            }
 
             if (savedAddress) {
                 setWalletAddress(savedAddress);
-                await fetchBalance(savedAddress);
-                await fetchTransactions(savedAddress);
+                // PERFORMANCE: Parallelize balance and tx fetching
+                await Promise.all([
+                    fetchBalance(savedAddress),
+                    fetchTransactions(savedAddress)
+                ]);
             } else {
                 setWalletAddress('');
                 setBalance('0.00');
@@ -197,7 +205,8 @@ const WalletScreen = () => {
             const result = await blockchainService.sendTransfer(
                 mnemonic,
                 recipientAddress,
-                sendAmount
+                sendAmount,
+                walletAddress // Security Check
             );
 
             if (result.success) {
@@ -584,6 +593,45 @@ const WalletScreen = () => {
                         setPinModalVisible(false);
                     }}
                 />
+
+                {/* Confirmation Modal */}
+                <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { alignItems: 'center' }]}>
+                            <Ionicons name="finger-print-outline" size={50} color={COLORS.azmitaRed} style={{ marginBottom: 20 }} />
+                            <Text style={styles.modalTitle}>{t('confirm_transaction')}</Text>
+
+                            <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 5 }}>Enviando a:</Text>
+                            <Text style={{ color: '#FFFFFF', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 12, marginBottom: 20 }}>
+                                {recipientAddress}
+                            </Text>
+
+                            <Text style={{ color: '#FFFFFF', fontSize: 32, fontFamily: 'Orbitron_700Bold', marginBottom: 5 }}>
+                                {sendAmount} {tokenSymbol}
+                            </Text>
+                            <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 30 }}>
+                                + {estimatedFee} {tokenSymbol} (Fee)
+                            </Text>
+
+                            <View style={{ marginBottom: 30 }}>
+                                <Text style={{ color: COLORS.azmitaRed, fontSize: 40, fontFamily: 'Orbitron_700Bold', textAlign: 'center' }}>
+                                    {countdown}s
+                                </Text>
+                            </View>
+
+                            <NeonButton
+                                title={sending ? "Procesando..." : "ENVIAR AHORA"}
+                                onPress={executeSendTransaction}
+                                style={{ width: '100%', marginBottom: 15 }}
+                                disabled={sending}
+                            />
+
+                            <TouchableOpacity onPress={() => { setConfirmVisible(false); setTimerActive(false); }}>
+                                <Text style={{ color: COLORS.textSecondary, fontFamily: 'Orbitron_700Bold' }}>CANCELAR</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         </ScreenWrapper>
     );

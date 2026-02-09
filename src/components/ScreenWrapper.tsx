@@ -20,7 +20,7 @@ export const ScreenWrapper: React.FC<{ children: React.ReactNode; style?: ViewSt
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.deepDark,
+        backgroundColor: COLORS.deepMaroon,
     },
     content: {
         flex: 1,
